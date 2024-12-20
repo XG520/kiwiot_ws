@@ -1,13 +1,15 @@
 ﻿import asyncio
 import logging
 from aiohttp import ClientSession
+from homeassistant.helpers.entity_component import EntityComponent
+from .entity import GroupEntity, DeviceEntity
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID
 from .websocket import start_websocket_connection
 from .token_manager import get_access_token
-from .entities import UserEntity, GroupEntity, TextEntity
+from .userinfo import get_ggid, get_ddevices
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
@@ -44,6 +46,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # 启动 WebSocket 连接（异步任务，非阻塞）
     hass.loop.create_task(start_websocket_connection(hass, access_token, session))
+
+    _LOGGER.info("开始获取用户信息")
+    try:
+        group_info = await get_ggid(hass, access_token, session)
+        _LOGGER.info(f"用户信息获取成功，组数量: {group_info['count']}")
+    except Exception as e:
+        _LOGGER.error(f"获取用户信息时发生错误: {e}")
+        return False
+
+    # 创建实体组件
+    component = EntityComponent(_LOGGER, DOMAIN, hass)
+
+    # 创建组实体
+    entities = []
+    for group in group_info["groups"]:
+        gid = group["gid"]
+        name = group["name"]
+        devices_info = await get_ddevices(hass, access_token, gid, session)
+        device_count = len(devices_info)
+        group_entity = GroupEntity(hass, name, gid, device_count)
+        entities.append(group_entity)
+        _LOGGER.info(f"设备信息: {devices_info}")
+
+        # 如果组中没有设备，跳过设备实体的创建
+        if device_count == 0:
+            continue
+
+        # 创建每个设备的实体并添加到实体列表
+        for device in devices_info:
+            device_name = device["name"]
+            device_type = device["type"]
+            device_entity = DeviceEntity(hass, device_name, gid, device_type)
+            entities.append(device_entity)
+
+    # 添加所有实体到 Home Assistant
+    await component.async_add_entities(entities)
 
     _LOGGER.info("KiwiOT 集成已成功初始化")
     return True

@@ -5,7 +5,7 @@
     "documentation": "https://www.home-assistant.io/integrations/kiwiot_ws",
     "dependencies": [],
     "requirements": ["aiohttp"],
-    "codeowners": ["@XG"],
+    "codeowners": ["@XG520"],
     "config_flow": true,
     "logging": {"level": "debug"}
   }
