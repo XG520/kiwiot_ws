@@ -1,0 +1,12 @@
+{
+    "domain": "kiwiot_ws",
+    "name": "KiwiOT WebSocket Integration",
+    "version": "1.0.0",
+    "documentation": "https://www.home-assistant.io/integrations/kiwiot_ws",
+    "dependencies": [],
+    "requirements": ["aiohttp"],
+    "codeowners": ["@XG"],
+    "config_flow": true,
+    "logging": {"level": "debug"}
+  }
+  
