@@ -1,17 +1,18 @@
 ﻿import asyncio
 import logging
-from aiohttp import ClientSession
+from aiohttp import ClientSession, TCPConnector
 from homeassistant.helpers.entity_component import EntityComponent
 from .entity import GroupEntity, DeviceEntity
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID
+from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
 from .websocket import start_websocket_connection
 from .token_manager import get_access_token
 from .userinfo import get_ggid, get_ddevices
 
-_LOGGER = logging.getLogger(LOGGER_NAME)
+_LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up KiwiOT integration from a config entry."""
@@ -20,23 +21,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     identifier = entry.data.get(CONF_IDENTIFIER)
     credential = entry.data.get(CONF_CREDENTIAL)
     client_id = entry.data.get(CONF_CLIENT_ID)
+    ignore_ssl = entry.data.get(CONF_IGNORE_SSL, False)  # 默认不忽略 SSL
 
     # 打印调试日志
-    _LOGGER.debug(f"Identifier: {identifier}, Credential: {credential}, Client ID: {client_id}")
-
+    _LOGGER.debug(f"Identifier: {identifier}, Credential: {credential}, Client ID: {client_id}, Ignore SSL: {ignore_ssl}")
+    # 配置需要显示日志的包
     # 验证配置是否完整
     if not all([identifier, credential, client_id]):
         _LOGGER.error("Identifier, Credential 或 Client ID 缺失，请检查配置")
         return False
 
-    # 获取全局 aiohttp 会话
-    session = ClientSession()
+    # 创建 aiohttp 会话，配置 SSL 忽略选项
+    connector = None
+    if ignore_ssl:
+        _LOGGER.warning("SSL 验证被忽略，此操作可能不安全")
+        connector = TCPConnector(ssl=not ignore_ssl)
+    session = ClientSession(connector=connector)
     hass.data[DOMAIN]["session"] = session
 
     # 获取 token
     try:
         access_token = await get_access_token(identifier, credential, client_id, session)
-        _LOGGER.info("Token 获取成功")
+        _LOGGER.info(f"Token 获取成功{access_token}")
         if not access_token:
             _LOGGER.error("无法获取 Token，初始化失败")
             return False

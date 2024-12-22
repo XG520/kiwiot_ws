@@ -6,7 +6,7 @@ import random
 #from .token_manager import get_access_token
 from .const import LOGGER_NAME, WS_URL
 
-_LOGGER = logging.getLogger(LOGGER_NAME)
+_LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
 
 def generate_uuid():

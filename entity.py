@@ -3,7 +3,7 @@
 from homeassistant.helpers.entity import Entity
 from .const import DOMAIN, LOGGER_NAME
 
-_LOGGER = logging.getLogger(LOGGER_NAME)
+_LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
 class GroupEntity(Entity):
     def __init__(self, hass, name, gid, device_count):
@@ -26,6 +26,7 @@ class GroupEntity(Entity):
 
     @property
     def device_info(self):
+        # 确保 identifiers 唯一且通过 DOMAIN 关联
         return {
             "identifiers": {(DOMAIN, self._gid)},
             "name": self._name,
@@ -38,8 +39,9 @@ class GroupEntity(Entity):
     def extra_state_attributes(self):
         return {
             "gid": self._gid,
-            "device_count": self._device_count
+            "device_count": self._device_count,
         }
+
 
 class DeviceEntity(Entity):
     def __init__(self, hass, name, gid, device_type):
@@ -62,8 +64,9 @@ class DeviceEntity(Entity):
 
     @property
     def device_info(self):
+        # 通过 `via_device` 确保设备关联到组
         return {
-            "identifiers": {(DOMAIN, self._gid)},
+            "identifiers": {(DOMAIN, f"device_{self._gid}_{self._name}")},
             "name": self._name,
             "manufacturer": "未知",
             "model": "Device Model",
@@ -75,5 +78,5 @@ class DeviceEntity(Entity):
     def extra_state_attributes(self):
         return {
             "gid": self._gid,
-            "device_type": self._device_type
+            "device_type": self._device_type,
         }

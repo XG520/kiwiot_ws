@@ -2,7 +2,7 @@
 import logging
 from .const import BASE_URL, LOGGER_NAME
 
-_LOGGER = logging.getLogger(LOGGER_NAME)
+_LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
 async def get_ggid(hass, token, session):
     url = f"{BASE_URL}/groups?access_token={token}"

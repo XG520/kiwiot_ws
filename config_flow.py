@@ -1,32 +1,37 @@
 import voluptuous as vol
 from homeassistant import config_entries
-from .const import DOMAIN, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID
+from .const import DOMAIN, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
 
 class KiwiOTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for KiwiOT."""
 
-    VERSION = 1
+    VERSION = 1.1
 
     async def async_step_user(self, user_input=None):
-        """处理初始步骤。"""
+        """Handle the initial step."""
         errors = {}
 
         if user_input is not None:
-            if len(user_input[CONF_IDENTIFIER]) < 3:
-                errors[CONF_IDENTIFIER] = "identifier_too_short"
+            # 校验用户输入
+            identifier = user_input.get(CONF_IDENTIFIER)
+            credential = user_input.get(CONF_CREDENTIAL)
+            client_id = user_input.get(CONF_CLIENT_ID)
+
+            if not all([identifier, credential, client_id]):
+                errors["base"] = "missing_fields"
             else:
                 return self.async_create_entry(title="KiwiOT", data=user_input)
 
-        # 定义数据模式
+        # 构建配置表单
         data_schema = vol.Schema({
-            vol.Required(CONF_IDENTIFIER): str,  
-            vol.Required(CONF_CREDENTIAL): str,  
-            vol.Required(CONF_CLIENT_ID): str, 
+            vol.Required(CONF_IDENTIFIER): str,
+            vol.Required(CONF_CREDENTIAL): str,
+            vol.Required(CONF_CLIENT_ID): str,
+            vol.Optional(CONF_IGNORE_SSL, default=False): bool,
         })
 
-        # 显示表单并返回
         return self.async_show_form(
-            step_id="user",  
-            data_schema=data_schema,  
-            errors=errors,  
+            step_id="user",
+            data_schema=data_schema,
+            errors=errors,
         )
