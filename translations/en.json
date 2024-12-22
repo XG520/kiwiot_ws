@@ -3,11 +3,12 @@
       "step": {
         "user": {
           "title": "优质websocket",
-          "description": "Enter your credentials to connect to KiwiOT.",
+          "description": "优质云家毛呸房",
           "data": {
             "identifier": "手机号（+86开头）",
             "credential": "密码",
-            "X-Kiwik-Client-Id": "Client ID"
+            "X-Kiwik-Client-Id": "Client ID",
+            "ignore_ssl": "忽略SSL证书验证（不安全）"
           }
         }
       },

@@ -28,9 +28,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ignore_ssl = entry.data.get(CONF_IGNORE_SSL, False)  # 默认不忽略 SSL
 
     # 打印调试日志
-    _LOGGER.debug(f"Identifier: {identifier}, Credential: {credential}, Client ID: {client_id}, Ignore SSL: {ignore_ssl}")
-    # 配置需要显示日志的包
-    # 验证配置是否完整
+    #_LOGGER.debug(f"Identifier: {identifier}, Credential: {credential}, Client ID: {client_id}, Ignore SSL: {ignore_ssl}")
+ 
     if not all([identifier, credential, client_id]):
         _LOGGER.error("Identifier, Credential 或 Client ID 缺失，请检查配置")
         return False
