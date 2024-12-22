@@ -4,6 +4,8 @@ from aiohttp import ClientSession, TCPConnector
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.entity import Entity
 from .entity import *
+from homeassistant.helpers.entity_platform import EntityPlatform
+from homeassistant.const import Platform
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -14,8 +16,9 @@ from .userinfo import get_ggid, get_ddevices, get_lock_userinfo, get_lock_info
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up KiwiOT integration from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
@@ -64,14 +67,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         # 存储组件到 hass.data
         hass.data[DOMAIN]["component"] = component
 
+        # 在创建实体之前添加
+        hass.data[DOMAIN][entry.entry_id] = {
+            "entities": []
+        }
+    
         # 遍历处理每个组
         entities_to_add = []
         
         for group in groups:
-            # 创建组实体
-            group_entity = KiwiDeviceGroup(hass, group)
-            entities_to_add.append(group_entity)
-
             # 获取组内设备
             devices = await get_ddevices(hass, access_token, group["gid"], session)
             if not devices:
@@ -79,32 +83,73 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 continue
 
             # 处理组内设备
-            for device in devices:
-                if device["type"] == "LOCK":
-                    # 创建锁设备实体
-                    lock_device = KiwiLockDevice(hass, device, group["gid"])
-                    entities_to_add.append(lock_device)
+            for device_info in devices:
+                if device_info["type"] == "LOCK":
+                    # 创建设备对象
+                    lock_device = KiwiLockDevice(
+                        hass, 
+                        device_info, 
+                        group["gid"],
+                        group["name"]
+                    )
+                    
+                    # 为每个物理设备创建一组实体
+                    device_entities = []
+                    
+                    # 1. 添加基本状态和电量实体
+                    device_entities.extend([
+                        KiwiLockStatus(lock_device),
+                        KiwiLockBattery(lock_device)
+                    ])
 
-                    # 获取并创建锁用户实体
-                    users = await get_lock_userinfo(hass, access_token, device["did"], session)
+                    # 2. 获取并添加该设备的用户实体
+                    users = await get_lock_userinfo(hass, access_token, device_info["did"], session)
                     if users:
-                        user_entities = [
-                            KiwiLockUser(hass, lock_device, user) 
-                            for user in users
-                        ]
-                        entities_to_add.extend(user_entities)
-
-                    # 获取并创建锁事件实体
-                    events = await get_lock_info(hass, access_token, device["did"], session)
+                        _LOGGER.info(f"用户数据结构: {users[0]}")
+                        for user in users:
+                            try:
+                                # 使用 get 方法安全地获取用户ID，提供默认值
+                                user_id = user.get("number", "unknown")  # 改用 number 作为用户标识
+                                user_entity = KiwiLockUser(
+                                    hass, 
+                                    lock_device, 
+                                    user,
+                                    device_id=lock_device.device_id,
+                                    unique_id=f"{lock_device.unique_id}_user_{user_id}"
+                                )
+                                device_entities.append(user_entity)
+                            except Exception as e:
+                                _LOGGER.error(f"创建用户实体失败: {e}, user_data: {user}")
+                                continue
+             
+                    # 3. 获取并添加该设备的事件实体
+                    events = await get_lock_info(hass, access_token, device_info["did"], session)
                     if events:
-                        event_entities = [
-                            KiwiLockEvent(hass, lock_device, event)
-                            for event in events
-                        ]
-                        entities_to_add.extend(event_entities)
+                        _LOGGER.info(f"事件数据结构: {events[0]}")
+                        for event in events:
+                            try:
+                                # 使用事件的创建时间作为唯一标识
+                                event_time = event.get("created_at", str(datetime.now()))
+                                event_entity = KiwiLockEvent(
+                                    hass, 
+                                    lock_device, 
+                                    event,
+                                    device_id=lock_device.device_id,
+                                    unique_id=f"{lock_device.unique_id}_event_{event_time}"
+                                )
+                                device_entities.append(event_entity)
+                            except Exception as e:
+                                _LOGGER.error(f"创建事件实体失败: {e}, event_data: {event}")
+                                continue
 
-        # 一次性添加所有实体
-        await component.async_add_entities(entities_to_add)
+                    # 将该设备的所有实体添加到总实体列表
+                    entities_to_add.extend(device_entities)
+
+        # 存储创建的实体
+        hass.data[DOMAIN][entry.entry_id]["entities"] = entities_to_add
+
+        # 注册平台
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
         # 启动 WebSocket 连接
         hass.loop.create_task(start_websocket_connection(hass, access_token, session))
@@ -122,7 +167,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload KiwiOT integration."""
     # 关闭全局 ClientSession
     session = hass.data[DOMAIN].get("session")
-    if session:
+    if (session):
         await session.close()
     hass.data.pop(DOMAIN, None)
     _LOGGER.info("KiwiOT 集成已卸载")

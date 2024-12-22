@@ -1,13 +1,14 @@
 {
     "domain": "kiwiot_ws",
     "name": "KiwiOT 优质云家",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "documentation": "https://github.com/XG520/kiwiot_ws/tree/main",
     "dependencies": [],
     "requirements": ["aiohttp"],
     "codeowners": ["@XG520"],
     "config_flow": true,
     "logging": {"level": "info"},
+    "iot_class": "Cloud Polling",
     "icon": "custom_components/kiwiot_ws/logo.png"
   }
   
