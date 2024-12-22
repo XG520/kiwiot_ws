@@ -1,15 +1,16 @@
-﻿import asyncio
+import asyncio
 import logging
 from aiohttp import ClientSession, TCPConnector
 from homeassistant.helpers.entity_component import EntityComponent
-from .entity import GroupEntity, DeviceEntity
+from homeassistant.helpers.entity import Entity
+from .entity import *
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
 from .websocket import start_websocket_connection
 from .token_manager import get_access_token
-from .userinfo import get_ggid, get_ddevices
+from .userinfo import get_ggid, get_ddevices, get_lock_userinfo, get_lock_info
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -49,48 +50,73 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     except Exception as e:
         _LOGGER.error(f"获取 token 时发生错误: {e}")
         return False
-
-    # 启动 WebSocket 连接（异步任务，非阻塞）
-    hass.loop.create_task(start_websocket_connection(hass, access_token, session))
-
-    _LOGGER.info("开始获取用户信息")
+    
     try:
-        group_info = await get_ggid(hass, access_token, session)
-        _LOGGER.info(f"用户信息获取成功，组数量: {group_info['count']}")
+         # 获取所有组信息
+        groups = await get_ggid(hass, access_token, session)
+        if not groups:
+            _LOGGER.error("获取组信息失败")
+            return False
+
+        # 创建传感器组件
+        component = EntityComponent[Entity](_LOGGER, DOMAIN, hass)
+        
+        # 存储组件到 hass.data
+        hass.data[DOMAIN]["component"] = component
+
+        # 遍历处理每个组
+        entities_to_add = []
+        
+        for group in groups:
+            # 创建组实体
+            group_entity = KiwiDeviceGroup(hass, group)
+            entities_to_add.append(group_entity)
+
+            # 获取组内设备
+            devices = await get_ddevices(hass, access_token, group["gid"], session)
+            if not devices:
+                _LOGGER.warning(f"组 {group['gid']} 内没有设备")
+                continue
+
+            # 处理组内设备
+            for device in devices:
+                if device["type"] == "LOCK":
+                    # 创建锁设备实体
+                    lock_device = KiwiLockDevice(hass, device, group["gid"])
+                    entities_to_add.append(lock_device)
+
+                    # 获取并创建锁用户实体
+                    users = await get_lock_userinfo(hass, access_token, device["did"], session)
+                    if users:
+                        user_entities = [
+                            KiwiLockUser(hass, lock_device, user) 
+                            for user in users
+                        ]
+                        entities_to_add.extend(user_entities)
+
+                    # 获取并创建锁事件实体
+                    events = await get_lock_info(hass, access_token, device["did"], session)
+                    if events:
+                        event_entities = [
+                            KiwiLockEvent(hass, lock_device, event)
+                            for event in events
+                        ]
+                        entities_to_add.extend(event_entities)
+
+        # 一次性添加所有实体
+        await component.async_add_entities(entities_to_add)
+
+        # 启动 WebSocket 连接
+        hass.loop.create_task(start_websocket_connection(hass, access_token, session))
+        
+        _LOGGER.info(f"KiwiOT 集成已成功初始化，添加了 {len(entities_to_add)} 个实体")
+        return True
+
     except Exception as e:
-        _LOGGER.error(f"获取用户信息时发生错误: {e}")
+        _LOGGER.error(f"设置集成时发生错误: {e}")
+        if session:
+            await session.close()
         return False
-
-    # 创建实体组件
-    component = EntityComponent(_LOGGER, DOMAIN, hass)
-
-    # 创建组实体
-    entities = []
-    for group in group_info["groups"]:
-        gid = group["gid"]
-        name = group["name"]
-        devices_info = await get_ddevices(hass, access_token, gid, session)
-        device_count = len(devices_info)
-        group_entity = GroupEntity(hass, name, gid, device_count)
-        entities.append(group_entity)
-        _LOGGER.info(f"设备信息: {devices_info}")
-
-        # 如果组中没有设备，跳过设备实体的创建
-        if device_count == 0:
-            continue
-
-        # 创建每个设备的实体并添加到实体列表
-        for device in devices_info:
-            device_name = device["name"]
-            device_type = device["type"]
-            device_entity = DeviceEntity(hass, device_name, gid, device_type)
-            entities.append(device_entity)
-
-    # 添加所有实体到 Home Assistant
-    await component.async_add_entities(entities)
-
-    _LOGGER.info("KiwiOT 集成已成功初始化")
-    return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload KiwiOT integration."""

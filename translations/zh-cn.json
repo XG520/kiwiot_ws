@@ -1,0 +1,18 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "优质websocket",
+        "description": "Enter your credentials to connect to KiwiOT.",
+        "data": {
+          "identifier": "手机号（+86开头）",
+          "credential": "密码",
+          "X-Kiwik-Client-Id": "Client ID"
+        }
+      }
+    },
+    "error": {
+      "identifier_too_short": "The identifier is too short."
+    }
+  }
+}
