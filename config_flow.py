@@ -1,5 +1,6 @@
 import voluptuous as vol
 from homeassistant import config_entries
+from typing import Any, Dict, Optional
 from .const import DOMAIN, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
 
 class KiwiOTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -7,7 +8,7 @@ class KiwiOTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1.1
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
         """Handle the initial step."""
         errors = {}
 
@@ -17,7 +18,7 @@ class KiwiOTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             credential = user_input.get(CONF_CREDENTIAL)
             client_id = user_input.get(CONF_CLIENT_ID)
 
-            if not identifier.startswith("+86") or len(identifier) != 13:
+            if not isinstance(identifier, str) or not identifier.startswith("+86") or len(identifier) != 14:
                 errors["identifier"] = "identifier_invalid_format"
             elif not all([identifier, credential, client_id]):
                 errors["base"] = "missing_fields"

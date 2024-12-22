@@ -14,7 +14,7 @@
       },
       "error": {
           "identifier_too_short": "错误格式账号",
-          "identifier_invalid_format": "手机号必须以+86开头且为13位",
+          "identifier_invalid_format": "手机号必须以+86开头且为14位",
           "missing_fields": "请填写所有必填项"
       }
   }
