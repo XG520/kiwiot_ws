@@ -17,7 +17,9 @@ class KiwiOTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             credential = user_input.get(CONF_CREDENTIAL)
             client_id = user_input.get(CONF_CLIENT_ID)
 
-            if not all([identifier, credential, client_id]):
+            if not identifier.startswith("+86") or len(identifier) != 13:
+                errors["identifier"] = "identifier_invalid_format"
+            elif not all([identifier, credential, client_id]):
                 errors["base"] = "missing_fields"
             else:
                 return self.async_create_entry(title="KiwiOT", data=user_input)

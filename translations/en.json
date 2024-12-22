@@ -1,19 +1,21 @@
 {
     "config": {
-      "step": {
-        "user": {
-          "title": "优质websocket",
-          "description": "优质云家毛呸房",
-          "data": {
-            "identifier": "手机号（+86开头）",
-            "credential": "密码",
-            "X-Kiwik-Client-Id": "Client ID",
-            "ignore_ssl": "忽略SSL证书验证（不安全）"
-          }
+        "step": {
+            "user": {
+                "title": "优质websocket",
+                "description": "请输入您的凭据以连接到KiwiOT。",
+                "data": {
+                    "identifier": "手机号（+86开头）",
+                    "credential": "密码",
+                    "X-Kiwik-Client-Id": "Client ID",
+                    "ignore_ssl": "忽略SSL证书验证（不安全）"
+                }
+            }
+        },
+        "error": {
+            "identifier_too_short": "错误格式账号",
+            "identifier_invalid_format": "手机号必须以+86开头且为13位",
+            "missing_fields": "请填写所有必填项"
         }
-      },
-      "error": {
-        "identifier_too_short": "The identifier is too short."
-      }
     }
-  }
+}
