@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .entity import  KiwiLockUser, KiwiLockStatus, KiwiLockBattery
+from .entity import  KiwiLockUser, KiwiLockInfo, KiwiLockStatus
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -18,7 +18,7 @@ async def async_setup_entry(
     entities = hass.data[DOMAIN][entry.entry_id].get("entities", [])
     sensor_entities = [
         entity for entity in entities 
-        if isinstance(entity, (KiwiLockStatus, KiwiLockBattery, KiwiLockUser))
+        if isinstance(entity, (KiwiLockInfo, KiwiLockStatus, KiwiLockUser))
     ]
     
     if sensor_entities:

@@ -3,7 +3,6 @@ import logging
 from aiohttp import ClientSession, TCPConnector
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.entity import Entity
-from .entity import *
 from homeassistant.helpers.entity_platform import EntityPlatform
 from homeassistant.const import Platform
 
@@ -13,6 +12,8 @@ from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_C
 from .websocket import start_websocket_connection
 from .token_manager import get_access_token
 from .userinfo import get_ggid, get_ddevices, get_llock_userinfo, get_llock_info
+from .entity import KiwiLockDevice, KiwiLockInfo, KiwiLockStatus, KiwiLockUser, KiwiLockEvent
+from .utils import get_latest_event
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -91,18 +92,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         group["gid"],
                         group["name"]
                     )
+                    _LOGGER.info(f"设备信息: {lock_device.device_info}")
+
+                    users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
+                    events = await get_llock_info(hass, access_token, device_info["did"], session)
+                    latest_event = await get_latest_event(events)
                     
                     # 为每个物理设备创建一组实体
                     device_entities = []
                     
-                    # 1. 添加基本状态和电量实体
                     device_entities.extend([
-                        KiwiLockStatus(lock_device),
-                        KiwiLockBattery(lock_device)
+                        KiwiLockInfo(lock_device, group),
+                        KiwiLockStatus(lock_device, latest_event)
                     ])
-
-                    # 2. 获取并添加该设备的用户实体
-                    users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
+                    
+                    #添加锁用户实体
                     if users:
                         _LOGGER.info(f"用户数据结构: {users[0]}")
                         for user in users:
@@ -121,25 +125,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 _LOGGER.error(f"创建用户实体失败: {e}, user_data: {user}")
                                 continue
              
-                    # 3. 获取并添加该设备的事件实体
-                    events = await get_llock_info(hass, access_token, device_info["did"], session)
-                    if events:
-                        _LOGGER.info(f"事件数据结构: {events[0]}")
-                        for event in events:
-                            try:
-                                # 使用事件的创建时间作为唯一标识
-                                event_time = event.get("created_at", str(datetime.now()))
-                                event_entity = KiwiLockEvent(
-                                    hass, 
-                                    lock_device, 
-                                    event,
-                                    device_id=lock_device.device_id,
-                                    unique_id=f"{lock_device.unique_id}_event_{event_time}"
-                                )
-                                device_entities.append(event_entity)
-                            except Exception as e:
-                                _LOGGER.error(f"创建事件实体失败: {e}, event_data: {event}")
-                                continue
 
                     # 将该设备的所有实体添加到总实体列表
                     entities_to_add.extend(device_entities)

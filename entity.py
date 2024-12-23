@@ -1,4 +1,5 @@
 ﻿import logging
+import pytz
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from .const import DOMAIN, LOGGER_NAME
 from datetime import datetime
@@ -165,7 +166,7 @@ class KiwiLockDevice:
         self.group_id = group_id
         self.group_name = group_name
         self.unique_id = f"{DOMAIN}_{self.device_id}"
-        
+
     def get_device_info(self):
         """返回设备信息"""
         return DeviceInfo(
@@ -177,13 +178,14 @@ class KiwiLockDevice:
             sw_version=self.device_info.get("version", "unknown")
         )
 
-class KiwiLockStatus(Entity):
-    """锁状态实体"""
-    def __init__(self, device):
+class KiwiLockInfo(Entity):
+    """获取组名"""
+    def __init__(self, device, group):
         self._device = device
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{DOMAIN}_{device.device_id}_status"
-        self._attr_name = "Status"
+        self._attr_name = "家庭"
+        self._group = group
 
     @property
     def device_info(self):
@@ -192,15 +194,24 @@ class KiwiLockStatus(Entity):
 
     @property
     def state(self):
-        return self._device.device_info.get("status", "unknown")
+        return self._group.get("name", "unknown")
 
-class KiwiLockBattery(Entity):
-    """锁电量实体"""
-    def __init__(self, device):
+class KiwiLockStatus(Entity):
+    """状态"""
+    def __init__(self, device, event):
         self._device = device
+        self._event = event
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{DOMAIN}_{device.device_id}_battery"
-        self._attr_name = "Battery"
+        self._attr_name = "门锁状态"
+
+        try:
+            event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
+            local_tz = pytz.timezone('Asia/Shanghai')
+            self._event_time = event_time_utc.astimezone(local_tz).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception as e:
+            _LOGGER.error(f"处理事件时间失败: {e}")
+            self._event_time = str(datetime.now())
 
     @property
     def device_info(self):
@@ -209,7 +220,17 @@ class KiwiLockBattery(Entity):
 
     @property
     def state(self):
-        return self._device.device_info.get("battery", 0)
+        return self._event.get("name", "unknown")
+
+    @property
+    def extra_state_attributes(self):
+        """返回额外的状态属性"""
+        return {
+            "last_update": self._event_time,
+            "device_id": self._device.device_id,
+            "event_type": self._event.get("level", "unknown"),
+            "event_data": self._event.get("data", "unknown")
+        }   
 
 class KiwiLockUser(Entity):
     """锁用户实体"""
