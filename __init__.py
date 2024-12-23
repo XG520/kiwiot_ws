@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
 from .websocket import start_websocket_connection
 from .token_manager import get_access_token
-from .userinfo import get_ggid, get_ddevices, get_lock_userinfo, get_lock_info
+from .userinfo import get_ggid, get_ddevices, get_llock_userinfo, get_llock_info
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -102,7 +102,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     ])
 
                     # 2. 获取并添加该设备的用户实体
-                    users = await get_lock_userinfo(hass, access_token, device_info["did"], session)
+                    users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
                     if users:
                         _LOGGER.info(f"用户数据结构: {users[0]}")
                         for user in users:
@@ -122,7 +122,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 continue
              
                     # 3. 获取并添加该设备的事件实体
-                    events = await get_lock_info(hass, access_token, device_info["did"], session)
+                    events = await get_llock_info(hass, access_token, device_info["did"], session)
                     if events:
                         _LOGGER.info(f"事件数据结构: {events[0]}")
                         for event in events:

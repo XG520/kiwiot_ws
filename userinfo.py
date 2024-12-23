@@ -38,7 +38,7 @@ async def get_ddevices(hass, token, gid, session):
         _LOGGER.error(f"发生意外错误: {e}")
         return None
     
-async def get_lock_userinfo(hass, token, did, session):
+async def get_llock_userinfo(hass, token, did, session):
     url = f"{BASE_URL}/api/locks/{did}/users?access_token={token}"
     try:
         async with session.get(url) as response:
@@ -55,7 +55,7 @@ async def get_lock_userinfo(hass, token, did, session):
         _LOGGER.error(f"发生意外错误: {e}")
         return None
     
-async def get_lock_info(hass, token, did, session):
+async def get_llock_info(hass, token, did, session):
     url = f"{BASE_URL}/api/devices/{did}/events?page=1&per_page=15&access_token={token}"
     try:
         async with session.get(url) as response:

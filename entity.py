@@ -7,6 +7,7 @@ _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
 class GroupEntity(Entity):
     def __init__(self, hass, name, gid, device_count):
+        """初始化组实体."""
         self.hass = hass
         self._name = name
         self._gid = gid
@@ -14,19 +15,22 @@ class GroupEntity(Entity):
 
     @property
     def name(self):
+        """返回实体的名称."""
         return self._name
 
     @property
     def state(self):
+        """返回实体的状态."""
         return self._device_count
 
     @property
     def unique_id(self):
+        """返回实体的唯一 ID."""
         return f"group_{self._gid}"
 
     @property
     def device_info(self):
-        # 确保 identifiers 唯一且通过 DOMAIN 关联
+        """返回设备信息，用于将实体关联到设备."""
         return {
             "identifiers": {(DOMAIN, self._gid)},
             "name": self._name,
@@ -37,6 +41,7 @@ class GroupEntity(Entity):
 
     @property
     def extra_state_attributes(self):
+        """返回额外的状态属性."""
         return {
             "gid": self._gid,
             "device_count": self._device_count,
@@ -45,6 +50,7 @@ class GroupEntity(Entity):
 
 class DeviceEntity(Entity):
     def __init__(self, hass, name, gid, device_info):
+        """初始化设备实体."""
         self.hass = hass
         self._name = name
         self._gid = gid
@@ -53,18 +59,22 @@ class DeviceEntity(Entity):
 
     @property
     def name(self):
+        """返回实体的名称."""
         return self._name
 
     @property
     def state(self):
-        return self._device_info
+        """返回实体的状态."""
+        return self._device_type
 
     @property
     def unique_id(self):
+        """返回实体的唯一 ID."""
         return f"device_{self._gid}_{self._name}"
 
     @property
     def device_info(self):
+        """返回设备信息，用于将实体关联到设备."""
         # 通过 `via_device` 确保设备关联到组
         return {
             "identifiers": {(DOMAIN, f"device_{self._gid}_{self._name}")},
@@ -77,6 +87,7 @@ class DeviceEntity(Entity):
 
     @property
     def extra_state_attributes(self):
+        """返回额外的状态属性."""
         return {
             "gid": self._gid,
             "device_type": self._device_type,
