@@ -1,10 +1,10 @@
-#import asyncio
+import asyncio
 import logging
 from aiohttp import ClientSession, TCPConnector
 from homeassistant.const import Platform
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+
 from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
 from .websocket import start_websocket_connection
 from .token_manager import get_access_token
@@ -47,7 +47,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # 初始化设备和组信息
     try:
-        entities_to_add = await initialize_devices_and_groups(hass, access_token, session)
+        entities_to_add = []
+
+        def add_entities_callback(new_entities):
+            entities_to_add.extend(new_entities)
+
+        await initialize_devices_and_groups(hass, access_token, session, add_entities_callback)
         if not entities_to_add:
             return False
 

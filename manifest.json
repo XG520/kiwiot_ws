@@ -5,7 +5,8 @@
     "documentation": "https://github.com/XG520/kiwiot_ws/tree/main",
     "dependencies": [],
     "requirements": [
-      "aiohttp>=3.8.0"
+      "aiohttp>=3.8.0",
+      "Pillow"
     ],
     "codeowners": ["@XG520"],
     "config_flow": true,

@@ -4,6 +4,11 @@ from homeassistant.helpers.entity import Entity, DeviceInfo
 from .const import DOMAIN, LOGGER_NAME
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from PIL import Image
+from io import BytesIO
+import base64
+import aiohttp
+import asyncio
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -206,6 +211,8 @@ class KiwiLockImage(ImageEntity):
         timestamp = int(datetime.now().timestamp() * 1000)
         self._attr_unique_id = f"{DOMAIN}_{device.device_id}_image_{timestamp}"
         self._attr_name = "记录"
+        self._image_data = None
+        self._access_tokens = []
 
     @property
     def device_info(self):
@@ -219,7 +226,28 @@ class KiwiLockImage(ImageEntity):
             "data" in self._event_data and 
             "image" in self._event_data["data"]):
             return self._event_data["data"]["image"].get("uri")
-        return None
+        return "https://via.placeholder.com/640x960.png"  
+
+    async def async_download_image(self):
+        """异步下载图片并存储在 _image_data 中"""
+        url = self.image_url
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.read()
+                    image = Image.open(BytesIO(data))
+                    buffered = BytesIO()
+                    image.save(buffered, format="JPEG")
+                    self._image_data = buffered.getvalue()
+                else:
+                    _LOGGER.error(f"无法下载图片，状态码: {response.status}")
+
+    @property
+    def entity_picture(self):
+        """返回实体的图片 URL"""
+        if self._image_data:
+            return f"data:image/jpeg;base64,{base64.b64encode(self._image_data).decode()}"
+        return self.image_url
 
     @property
     def extra_state_attributes(self):
@@ -249,6 +277,36 @@ class KiwiLockImage(ImageEntity):
             
         return attributes
 
+    async def async_rotate_image(self, image_url):
+        """获取图片并旋转90度"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(image_url) as response:
+                    if response.status == 200:
+                        image_data = await response.read()
+                        image = Image.open(BytesIO(image_data))
+                        rotated_image = image.rotate(-90, expand=True)
+                        buffered = BytesIO()
+                        rotated_image.save(buffered, format="JPEG")
+                        self._image_data = buffered.getvalue()
+                    else:
+                        _LOGGER.error(f"无法获取图片，状态码: {response.status}")
+        except Exception as e:
+            _LOGGER.error(f"旋转图片失败: {e}")
+
+    @property
+    def access_tokens(self):
+        """返回访问令牌"""
+        if self._access_tokens:
+            return self._access_tokens
+        return ["default_token"]
+
+    async def async_update(self):
+        """更新实体状态"""
+        await self.async_download_image()
+        self._state = self._event_data.get("name", "UNKNOWN")
+        self._attributes = self.extra_state_attributes
+
 class KiwiLockStatus(Entity):
     """状态"""
     def __init__(self, device, event):
@@ -256,15 +314,9 @@ class KiwiLockStatus(Entity):
         self._event = event
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{DOMAIN}_{device.device_id}_status"
-        self._attr_name = "门锁状态"
-
-        try:
-            event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
-            event_time_local = event_time_utc.astimezone(ZoneInfo("Asia/Shanghai"))
-            self._event_time = event_time_local.strftime("%Y-%m-%d %H:%M:%S")
-        except Exception as e:
-            _LOGGER.error(f"处理事件时间失败: {e}")
-            self._event_time = str(datetime.now())
+        self._attr_name = "状态"
+        self._state = None
+        self._attributes = {}
 
     @property
     def device_info(self):
@@ -272,18 +324,14 @@ class KiwiLockStatus(Entity):
         return self._device.get_device_info()
 
     @property
-    def state(self):
-        return self._event.get("name", "unknown")
-
-    @property
     def extra_state_attributes(self):
-        """返回额外的状态属性"""
-        return {
-            "last_update": self._event_time,
-            "device_id": self._device.device_id,
-            "event_type": self._event.get("level", "unknown"),
-            "event_data": self._event.get("data", "unknown")
-        }   
+        """返回额外属性"""
+        return self._attributes
+
+    async def async_update(self):
+        """更新实体状态"""
+        self._state = self._event.get("status", "UNKNOWN")
+        self._attributes = self._event.get("attributes", {})
 
 class KiwiLockUser(Entity):
     """锁用户实体"""
@@ -311,7 +359,7 @@ class KiwiLockUser(Entity):
     @property
     def unique_id(self):
         """唯一标识符"""
-        return self._unique_id  # 使用传入的唯一标识符
+        return self._unique_id  
 
     @property
     def state(self):
