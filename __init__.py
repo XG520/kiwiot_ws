@@ -109,7 +109,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     #添加锁用户实体
                     if users:
                         _LOGGER.info(f"用户数据结构: {users[0]}")
+                        user_count = 0
                         for user in users:
+                            user_count += 1
                             try:
                                 # 使用 get 方法安全地获取用户ID，提供默认值
                                 user_id = user.get("number", "unknown")  # 改用 number 作为用户标识
@@ -118,7 +120,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                     lock_device, 
                                     user,
                                     device_id=lock_device.device_id,
-                                    unique_id=f"{lock_device.unique_id}_user_{user_id}"
+                                    unique_id=f"{lock_device.unique_id}_user_{user_id}_{user_count}"
                                 )
                                 device_entities.append(user_entity)
                             except Exception as e:

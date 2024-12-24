@@ -1,8 +1,8 @@
 ﻿import logging
-import pytz
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from .const import DOMAIN, LOGGER_NAME
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -183,7 +183,7 @@ class KiwiLockInfo(Entity):
     def __init__(self, device, group):
         self._device = device
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{DOMAIN}_{device.device_id}_status"
+        self._attr_unique_id = f"{DOMAIN}_{device.device_id}_info"
         self._attr_name = "家庭"
         self._group = group
 
@@ -202,13 +202,13 @@ class KiwiLockStatus(Entity):
         self._device = device
         self._event = event
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{DOMAIN}_{device.device_id}_battery"
+        self._attr_unique_id = f"{DOMAIN}_{device.device_id}_status"
         self._attr_name = "门锁状态"
 
         try:
             event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
-            local_tz = pytz.timezone('Asia/Shanghai')
-            self._event_time = event_time_utc.astimezone(local_tz).strftime("%Y-%m-%d %H:%M:%S")
+            event_time_local = event_time_utc.astimezone(ZoneInfo("Asia/Shanghai"))
+            self._event_time = event_time_local.strftime("%Y-%m-%d %H:%M:%S")
         except Exception as e:
             _LOGGER.error(f"处理事件时间失败: {e}")
             self._event_time = str(datetime.now())

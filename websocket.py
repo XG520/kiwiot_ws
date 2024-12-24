@@ -25,40 +25,69 @@ def generate_uuid():
 async def start_websocket_connection(hass, access_token, session):
     """启动 WebSocket 连接并维护心跳和消息处理."""
     ws_url = f"{WS_URL}/?access_token={access_token}"
-    _LOGGER.debug(f"WebSocket URL: {ws_url}")
+    retry_count = 0
+    max_retries = 5
+    retry_delay = 5  # 初始重试延迟(秒)
 
-    try:
-        async with session.ws_connect(ws_url) as ws:
-            _LOGGER.info(f"WebSocket 连接已建立，WebSocket URL: {ws_url}")
-            # 启动后台任务：心跳与消息处理
-            tasks = [
-                asyncio.create_task(send_heartbeat(ws)),
-                asyncio.create_task(handle_websocket_messages(ws))
-            ]
-            # 等待任务完成
-            done, pending = await asyncio.wait(
-                tasks,
-                return_when=asyncio.FIRST_EXCEPTION
-            )
-            # 取消未完成的任务
-            for task in pending:
-                task.cancel()
-            # 检查是否有异常
-            for task in done:
-                if task.exception():
-                    raise task.exception()
-    except aiohttp.ClientResponseError as e:
-        _LOGGER.error(f"WebSocket 连接失败: 状态码={e.status}, 响应={e.message}, URL={ws_url}")
-    except asyncio.TimeoutError:
-        _LOGGER.error("WebSocket 连接超时")
-    except Exception as e:
-        _LOGGER.error(f"WebSocket 连接时发生其他错误: {e}")
+    while retry_count < max_retries:
+        try:
+            async with session.ws_connect(ws_url) as ws:
+                _LOGGER.info(f"WebSocket 连接已建立 (重试次数: {retry_count})")
+                
+                # 重置重试计数
+                retry_count = 0
+                retry_delay = 5
+                
+                # 启动后台任务
+                tasks = [
+                    asyncio.create_task(send_heartbeat(ws)),
+                    asyncio.create_task(handle_websocket_messages(ws))
+                ]
+                
+                # 等待任务完成或异常
+                try:
+                    done, pending = await asyncio.wait(
+                        tasks,
+                        return_when=asyncio.FIRST_EXCEPTION
+                    )
+                    # 取消未完成的任务
+                    for task in pending:
+                        task.cancel()
+                    # 检查异常
+                    for task in done:
+                        if task.exception():
+                            raise task.exception()
+                except Exception as e:
+                    _LOGGER.error(f"WebSocket 任务异常: {e}")
+                    raise
+                    
+        except aiohttp.ClientResponseError as e:
+            _LOGGER.error(f"WebSocket 连接失败: 状态码={e.status}")
+            retry_count += 1
+        except asyncio.TimeoutError:
+            _LOGGER.error("WebSocket 连接超时")
+            retry_count += 1
+        except Exception as e:
+            _LOGGER.error(f"WebSocket 连接错误: {e}")
+            retry_count += 1
+            
+        if retry_count < max_retries:
+            wait_time = retry_delay * (2 ** retry_count)  # 指数退避
+            _LOGGER.info(f"等待 {wait_time} 秒后重试连接...")
+            await asyncio.sleep(wait_time)
+        else:
+            _LOGGER.error(f"WebSocket 连接重试次数达到上限 ({max_retries})")
+            break
 
 async def send_heartbeat(ws):
     """发送心跳消息."""
-    interval = 30  # 心跳间隔时间，单位为秒
+    interval = 30
     try:
         while True:
+            if ws.closed:
+                _LOGGER.warning("WebSocket 已关闭，停止发送心跳")
+                break
+                
             ping_message = {
                 "header": {
                     "namespace": "Iot.Application",
@@ -68,17 +97,15 @@ async def send_heartbeat(ws):
                 }
             }
             await ws.send_json(ping_message)
-            _LOGGER.debug(f"发送心跳消息: {ping_message}")
+            _LOGGER.debug("心跳消息已发送")
             await asyncio.sleep(interval)
-    except asyncio.CancelledError:
-        _LOGGER.info("心跳任务已取消")
     except Exception as e:
-        _LOGGER.error(f"发送心跳消息失败: {e}")
+        _LOGGER.error(f"心跳消息发送失败: {e}")
         raise
 
 
 async def handle_websocket_messages(ws):
-    """处理 WebSocket 消息."""
+    """处理 WebSocket 消息。"""
     try:
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
@@ -98,7 +125,7 @@ async def handle_websocket_messages(ws):
 
 
 async def stop_websocket_connection(websocket_task):
-    """停止 WebSocket 连接任务."""
+    """停止 WebSocket 连接任务。"""
     try:
         websocket_task.cancel()
         await websocket_task
