@@ -1,4 +1,5 @@
 ﻿import logging
+from homeassistant.components.image import ImageEntity
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from .const import DOMAIN, LOGGER_NAME
 from datetime import datetime
@@ -195,6 +196,58 @@ class KiwiLockInfo(Entity):
     @property
     def state(self):
         return self._group.get("name", "unknown")
+
+class KiwiLockImage(ImageEntity):
+    """门锁图片实体"""
+    def __init__(self, device, event_data):
+        self._device = device
+        self._event_data = event_data
+        self._attr_has_entity_name = True
+        timestamp = int(datetime.now().timestamp() * 1000)
+        self._attr_unique_id = f"{DOMAIN}_{device.device_id}_image_{timestamp}"
+        self._attr_name = "记录"
+
+    @property
+    def device_info(self):
+        """返回设备信息"""
+        return self._device.get_device_info()
+
+    @property
+    def image_url(self):
+        """返回图片URL"""
+        if (self._event_data and 
+            "data" in self._event_data and 
+            "image" in self._event_data["data"]):
+            return self._event_data["data"]["image"].get("uri")
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """返回额外属性"""
+        attributes = {}
+        
+        # 添加时间信息
+        if "created_at" in self._event_data:
+            try:
+                event_time_utc = datetime.fromisoformat(
+                    self._event_data["created_at"].replace('Z', '+00:00')
+                )
+                event_time_local = event_time_utc.astimezone(ZoneInfo("Asia/Shanghai"))
+                attributes["time"] = event_time_local.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                _LOGGER.error(f"处理时间失败: {e}")
+        
+        # 添加用户信息
+        if (self._event_data and 
+            "data" in self._event_data and 
+            "lock_user" in self._event_data["data"]):
+            lock_user = self._event_data["data"]["lock_user"]
+            attributes.update({
+                "user_id": lock_user.get("id"),
+                "user_type": lock_user.get("type")
+            })
+            
+        return attributes
 
 class KiwiLockStatus(Entity):
     """状态"""
