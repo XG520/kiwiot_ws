@@ -37,26 +37,10 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     events = await get_llock_info(hass, access_token, device_info["did"], session)
                     latest_event = await get_latest_event(events)
 
-                    test_data ={
-                                "device_id":"32E8329FCB40",
-                                "name":"UNLOCKED",
-                                "level":"INFO",
-                                "data":{
-                                    "image":{
-                                        "uri":"https://ims.kwicdn.com/bb8d5c2ddc79c27723be09eec76c4348/676B6A94/hghJEBfUST9/m515fcw9.jpg"
-                                        },
-                                    "lock_user":{
-                                        "id":5,
-                                        "type":"FINGERPRINT"
-                                        }
-                                    },
-                                "created_at":"2024-12-23T14:44:58Z"
-                                }
-
                     device_entities = [
                         KiwiLockInfo(lock_device, group),
                         KiwiLockStatus(lock_device, latest_event),
-                        KiwiLockImage(lock_device, test_data)
+                        KiwiLockImage(lock_device, latest_event)
                     ]
 
                     if users:
