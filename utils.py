@@ -26,6 +26,33 @@ async def get_latest_event(events: List[Dict]) -> Optional[Dict]:
     except Exception as e:
         _LOGGER.error(f"获取最新事件失败: {e}")
         return None
+
+async def get_latest_event_with_data(events: List[Dict]) -> Optional[Dict]:
+    """获取最近一次包含data的事件."""
+    try:
+        if not events:
+            return None
+            
+        # 按创建时间排序事件
+        sorted_events = sorted(
+            events,
+            key=lambda x: datetime.fromisoformat(x.get("created_at", "").replace('Z', '+00:00')),
+            reverse=True
+        )
+        
+        # 查找第一个包含data且不为空的事件
+        for event in sorted_events:
+            if (event.get("data") and 
+                isinstance(event["data"], dict) and 
+                len(event["data"]) > 0):
+                _LOGGER.debug(f"找到最近的data事件: {event}")
+                return event
+                
+        return None
+        
+    except Exception as e:
+        _LOGGER.error(f"获取最近data事件失败: {e}")
+        return None
     
 async def get_history_events(events: List[Dict]) -> List[Dict]:
     """获取除最新事件外的所有事件."""
@@ -49,3 +76,11 @@ async def get_history_events(events: List[Dict]) -> List[Dict]:
     except Exception as e:
         _LOGGER.error(f"获取历史事件失败: {e}")
         return []
+    
+async def get_stream_id(data: dict) -> str | None:
+    try:
+        if data.get("name") == "HUMAN_WANDERING":
+            return data.get("data", {}).get("stream_id")
+        return None
+    except Exception:
+        return None

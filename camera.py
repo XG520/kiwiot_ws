@@ -1,22 +1,22 @@
-from __future__ import annotations
-
+﻿#from homeassistant.components.camera import Camera
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .entity import KiwiLockUser, KiwiLockInfo, KiwiLockStatus
+from .entity import KiwiLockCamera
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """设置传感器实体"""
+    """设置摄像头实体"""
     entities = hass.data[DOMAIN][entry.entry_id].get("entities", [])
-    sensor_entities = [
+    camera_entities = [
         entity for entity in entities 
-        if isinstance(entity, (KiwiLockInfo, KiwiLockStatus, KiwiLockUser))
+        if isinstance(entity, KiwiLockCamera)
     ]
     
-    if sensor_entities:
-        async_add_entities(sensor_entities, True)
+    if camera_entities:
+        async_add_entities(camera_entities, True)

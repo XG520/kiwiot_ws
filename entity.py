@@ -1,4 +1,10 @@
 ﻿import logging
+import base64
+import aiohttp
+import asyncio
+import collections
+from aiohttp import web 
+
 from homeassistant.components.image import ImageEntity
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from .const import DOMAIN, LOGGER_NAME
@@ -6,9 +12,10 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from PIL import Image
 from io import BytesIO
-import base64
-import aiohttp
-import asyncio
+from os import urandom
+from homeassistant.components.camera import Camera
+from homeassistant.helpers.aiohttp_client import async_aiohttp_proxy_stream
+from homeassistant.const import STATE_UNKNOWN
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -418,8 +425,8 @@ class KiwiLockEvent(Entity):
 
     @property
     def unique_id(self):
-        return self._unique_id  # 使用传入的唯一标识符
-        
+        return self._unique_id 
+    
     @property
     def state(self):
         return self._event_info["name"]
@@ -437,3 +444,84 @@ class KiwiLockEvent(Entity):
             "created_at": self._event_info["created_at"],
             "data": self._event_info["data"]
         }
+
+class KiwiLockCamera(Camera):
+    USER_TYPE_MAP = {
+        "FACE": "人脸",
+        "PASSWORD": "密码",
+        "FINGERPRINT": "指纹"
+    }
+    STATE_MAP = {
+        "UNLOCKED": "锁已经打开",
+        "LOCKED": "锁已锁上",
+        "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
+        "HUMAN_WANDERING": "有人徘徊"
+    }
+
+    def __init__(self, hass, device, event_data, video_info):
+        super().__init__()
+        self.hass = hass
+        self._device = device
+        self._event_data = event_data
+        self._video_info = video_info
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{DOMAIN}_{device.device_id}_camera"
+        self._attr_name = "最近一次图像事件"
+        self._attr_is_streaming = False
+        self._state = STATE_UNKNOWN
+
+    @property
+    def device_info(self):
+        """返回设备信息"""
+        return self._device.get_device_info()
+
+    @property
+    def state(self):
+        """返回当前状态"""
+        if not self._event_data:
+            return STATE_UNKNOWN
+        name = self._event_data.get("name", "")
+        return self.STATE_MAP.get(name, name)
+
+    @property
+    def extra_state_attributes(self):
+        """返回额外属性"""
+        if not self._event_data:
+            return {}
+
+        data = self._event_data.get("data", {})
+        lock_user = data.get("lock_user", {})
+        
+        # 获取用户类型并转换
+        user_type = lock_user.get("type", "")
+        displayed_type = self.USER_TYPE_MAP.get(user_type, user_type)
+        
+        return {
+            "level": self._event_data.get("level"),
+            "created_at": self._event_data.get("created_at"),
+            "用户ID": lock_user.get("id"),
+            "开锁类型": displayed_type,
+            "事件时间": self._event_data.get("created_at")
+        }
+
+    async def async_camera_image(self, width=None, height=None):
+        """获取摄像头图片或视频."""
+        if self._video_info and "media" in self._video_info and "uri" in self._video_info["media"]:
+            url = self._video_info["media"]["uri"]
+        elif (self._event_data and 
+              "data" in self._event_data and 
+              "image" in self._event_data["data"] and
+              "uri" in self._event_data["data"]["image"]):
+            url = self._event_data["data"]["image"]["uri"]
+        else:
+            return None
+            
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        return None
+                    return await response.read()
+            except Exception as ex:
+                _LOGGER.error("获取图片或视频失败: %s", ex)
+                return None

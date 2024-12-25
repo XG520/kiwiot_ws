@@ -12,7 +12,7 @@ from .device_manager import initialize_devices_and_groups
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.CAMERA]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up KiwiOT integration from a config entry."""
