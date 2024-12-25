@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 from .const import LOGGER_NAME
 from .userinfo import get_ggid, get_ddevices, get_llock_userinfo, get_llock_info
 from .entity import KiwiLockDevice, KiwiLockInfo, KiwiLockStatus, KiwiLockUser, KiwiLockImage
-from .utils import get_latest_event
+from .utils import get_latest_event, get_history_events
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -36,10 +36,13 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
                     events = await get_llock_info(hass, access_token, device_info["did"], session)
                     latest_event = await get_latest_event(events)
+                    history_events = get_history_events(events)
+
+                    _LOGGER.info(f"设备 {lock_device.device_id} 的最新事件: {latest_event}")
 
                     device_entities = [
                         KiwiLockInfo(lock_device, group),
-                        KiwiLockStatus(lock_device, latest_event),
+                        KiwiLockStatus(lock_device, latest_event, history_events),
                         KiwiLockImage(lock_device, latest_event)
                     ]
 

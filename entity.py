@@ -309,14 +309,23 @@ class KiwiLockImage(ImageEntity):
 
 class KiwiLockStatus(Entity):
     """状态"""
-    def __init__(self, device, event):
+    def __init__(self, device, event, history_events):
         self._device = device
         self._event = event
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{DOMAIN}_{device.device_id}_status"
-        self._attr_name = "状态"
-        self._state = None
-        self._attributes = {}
+        self._attr_name = "门锁状态"
+        self._event_time = None
+        self._event_history = history_events or []
+
+        try:
+            event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
+            event_time_local = event_time_utc.astimezone(ZoneInfo("Asia/Shanghai"))
+            self._event_time = event_time_local.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception as e:
+            _LOGGER.error(f"处理事件时间失败: {e}")
+            self._event_time = str(datetime.now())
+        
 
     @property
     def device_info(self):
@@ -324,14 +333,24 @@ class KiwiLockStatus(Entity):
         return self._device.get_device_info()
 
     @property
-    def extra_state_attributes(self):
-        """返回额外属性"""
-        return self._attributes
+    def state(self):
+        return self._event.get("name", "unknown")
 
-    async def async_update(self):
-        """更新实体状态"""
-        self._state = self._event.get("status", "UNKNOWN")
-        self._attributes = self._event.get("attributes", {})
+    @property
+    def extra_state_attributes(self):
+        """返回额外的状态属性"""
+        attributes = {
+            "last_update": self._event_time,
+            "device_id": self._device.device_id,
+            "event_type": self._event.get("level", "unknown"),
+            "event_data": self._event.get("data", "unknown")
+        }
+
+        if self._event_history:
+            attributes["history"] = self._event_history
+
+        return attributes
+
 
 class KiwiLockUser(Entity):
     """锁用户实体"""
