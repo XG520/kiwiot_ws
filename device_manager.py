@@ -36,9 +36,7 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
                     events = await get_llock_info(hass, access_token, device_info["did"], session)
                     latest_event = await get_latest_event(events)
-                    history_events = get_history_events(events)
-
-                    _LOGGER.info(f"设备 {lock_device.device_id} 的最新事件: {latest_event}")
+                    history_events = await get_history_events(events)
 
                     device_entities = [
                         KiwiLockInfo(lock_device, group),
