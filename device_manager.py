@@ -34,7 +34,6 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     latest_event = await get_latest_event(events)
                     latest_data_event = await get_latest_event_with_data(events)
                     history_events = await get_history_events(events)
-
                     video_info = None
                     if latest_data_event.get("name") == "HUMAN_WANDERING":
                         stream_id = latest_data_event.get("data", {}).get("stream_id")

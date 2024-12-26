@@ -6,7 +6,10 @@
     "dependencies": ["camera"],
     "requirements": [
       "aiohttp>=3.8.0",
-      "Pillow"
+      "Pillow",
+      "ffmpeg-python>=0.2.0",
+      "async-timeout",
+      "pillow"
     ],
     "codeowners": ["@XG520"],
     "config_flow": true,

@@ -3,21 +3,21 @@ import base64
 import aiohttp
 import asyncio
 import collections
-from aiohttp import web 
 
 from homeassistant.components.image import ImageEntity
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from .const import DOMAIN, LOGGER_NAME
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from PIL import Image
+from PIL import Image, ImageFile
 from io import BytesIO
-from os import urandom
 from homeassistant.components.camera import Camera
-from homeassistant.helpers.aiohttp_client import async_aiohttp_proxy_stream
 from homeassistant.const import STATE_UNKNOWN
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
+
+# 允许加载截断的图像
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class GroupEntity(Entity):
     def __init__(self, hass, name, gid, device_count):
@@ -89,7 +89,6 @@ class DeviceEntity(Entity):
     @property
     def device_info(self):
         """返回设备信息，用于将实体关联到设备."""
-        # 通过 `via_device` 确保设备关联到组
         return {
             "identifiers": {(DOMAIN, f"device_{self._gid}_{self._name}")},
             "name": self._name,
@@ -157,7 +156,7 @@ class KiwiDeviceGroup(Entity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, f"group_{self._group_id}")},  # 修改标识符格式
+            "identifiers": {(DOMAIN, f"group_{self._group_id}")},
             "name": f"智能家居群组 - {self._name}",
             "manufacturer": "KiwiOT",
             "model": "Device Group",
@@ -485,12 +484,10 @@ class KiwiLockCamera(Camera):
 
     @property
     def device_info(self):
-        """返回设备信息"""
         return self._device.get_device_info()
 
     @property
     def state(self):
-        """返回当前状态"""
         if not self._event_data:
             return STATE_UNKNOWN
         name = self._event_data.get("name", "")
@@ -498,7 +495,6 @@ class KiwiLockCamera(Camera):
 
     @property
     def extra_state_attributes(self):
-        """返回额外属性"""
         if not self._event_data:
             return {}
 
@@ -517,7 +513,7 @@ class KiwiLockCamera(Camera):
             "事件时间": self._event_data.get("created_at")
         }
 
-    async def async_camera_image(self, width=None, height=None):
+    async def async_camera_image(self, width=320, height=480):
         """获取摄像头图片或视频."""
         if self._video_info and "media" in self._video_info and "uri" in self._video_info["media"]:
             url = self._video_info["media"]["uri"]
@@ -534,7 +530,12 @@ class KiwiLockCamera(Camera):
                 async with session.get(url) as response:
                     if response.status != 200:
                         return None
-                    return await response.read()
+                    image_data = await response.read()
+                    image = Image.open(BytesIO(image_data))
+                    rotated_image = image.rotate(-90, expand=True)
+                    output = BytesIO()
+                    rotated_image.save(output, format=image.format)
+                    return output.getvalue()
             except Exception as ex:
                 _LOGGER.error("获取图片或视频失败: %s", ex)
                 return None
