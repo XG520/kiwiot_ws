@@ -115,6 +115,8 @@ async def handle_websocket_messages(ws, hass):
                     event_name = payload.get("name")
                     if event_name == "UNLOCKED" or event_name == "LOCKED":
                         payload = await convert_wsevent_format(payload)
+                    else:
+                        _LOGGER.debug(f"未知事件类型: {payload}")
                     # 调用更新实体状态的方法
                     await update_device_state(hass, device_id, payload)
                     
