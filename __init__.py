@@ -44,7 +44,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as e:
         _LOGGER.error(f"获取 token 时发生错误: {e}")
         return False
-
+    
+    hass.data[DOMAIN]["access_token"] = access_token
     # 初始化设备和组信息
     try:
         entities_to_add = []

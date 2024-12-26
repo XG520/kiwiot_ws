@@ -84,3 +84,33 @@ async def get_stream_id(data: dict) -> str | None:
         return None
     except Exception:
         return None
+    
+async def convert_wsevent_format(event_data: dict) -> dict:
+    USER_TYPE_MAP = {
+        0: "门内", 
+        1: "FINGERPRINT",
+        2: "PASSWORD",
+        5: "微信",
+        6: "FACE"
+    } 
+    converted_data =  {
+        "device_id": event_data.get("did"),
+        "name": event_data.get("name"),
+        "level": event_data.get("level"),
+        "created_at": event_data.get("created_at"),
+        "data": {
+            "image": {
+                "uri": event_data.get("data", {}).get("image_uri")
+            },
+            "lock_user": {
+                "id": event_data.get("data", {}).get("lock_user", {}).get("id"),
+                "type": USER_TYPE_MAP.get(
+                    event_data.get("data", {}).get("lock_user", {}).get("type"),
+                    "UNKNOWN"
+                )
+            }
+        }
+    }
+  
+
+    return converted_data

@@ -316,6 +316,17 @@ class KiwiLockImage(ImageEntity):
 
 class KiwiLockStatus(Entity):
     """状态"""
+    USER_TYPE_MAP = {
+        "FACE": "人脸",
+        "PASSWORD": "密码",
+        "FINGERPRINT": "指纹"
+    }
+    STATE_MAP = {
+        "UNLOCKED": "锁已经打开",
+        "LOCKED": "锁已锁上",
+        "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
+        "HUMAN_WANDERING": "有人徘徊"
+    }
     def __init__(self, device, event, history_events):
         self._device = device
         self._event = event
@@ -341,11 +352,13 @@ class KiwiLockStatus(Entity):
 
     @property
     def state(self):
-        return self._event.get("name", "unknown")
+        name = self._event.get("name", "unknown")
+        return self.STATE_MAP.get(name, name)
 
     @property
     def extra_state_attributes(self):
         """返回额外的状态属性"""
+
         attributes = {
             "last_update": self._event_time,
             "device_id": self._device.device_id,
