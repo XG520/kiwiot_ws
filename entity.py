@@ -414,9 +414,12 @@ class KiwiLockUser(Entity):
 
     @property
     def state(self):
-        """实体状态"""
-        return self._user_info.get("updated_at", "unknown")
-    
+        alias = self._user_info.get("alias", "")
+        if not alias:
+            return "No Alias"
+        else:
+            return alias
+        
     @property
     def icon(self):
         if self._user_type == "FACE":

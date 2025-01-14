@@ -48,7 +48,7 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     ]
 
                     if users:
-                        _LOGGER.debug(f"用户数据结构示例: {users[0]}")  
+                        _LOGGER.info(f"用户数据结构示例: {users[0]}")  
                         for user_count, user in enumerate(users, start=1):
                             try:
                                 user_id = user.get("number", "unknown")
