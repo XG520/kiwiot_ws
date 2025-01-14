@@ -203,6 +203,10 @@ class KiwiLockInfo(Entity):
     def device_info(self):
         """返回设备信息"""
         return self._device.get_device_info()
+    
+    @property
+    def icon(self):
+        return "mdi:home"
 
     @property
     def state(self):
@@ -350,6 +354,15 @@ class KiwiLockStatus(Entity):
         return self._device.get_device_info()
 
     @property
+    def icon(self):
+        if self._event.get("name") == "UNLOCKED":
+            return "mdi:door-open"
+        elif self._event.get("name") == "LOCKED":
+            return "mdi:door-closed-lock"
+        else:
+            return "mdi:alert-circle"
+
+    @property
     def state(self):
         name = self._event.get("name", "unknown")
         return self.STATE_MAP.get(name, name)
@@ -403,6 +416,17 @@ class KiwiLockUser(Entity):
     def state(self):
         """实体状态"""
         return self._user_info.get("updated_at", "unknown")
+    
+    @property
+    def icon(self):
+        if self._user_type == "FACE":
+            return "mdi:face-recognition"
+        elif self._user_type == "PASSWORD":
+            return "mdi:key"
+        elif self._user_type == "FINGERPRINT":
+            return "mdi:fingerprint"
+        else:
+            return "mdi:account"
         
     @property
     def device_info(self):

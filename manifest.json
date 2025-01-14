@@ -15,6 +15,6 @@
     "config_flow": true,
     "logging": {"level": "info"},
     "iot_class": "Cloud Polling",
-    "icon": "logo.png"
+    "icon": "local://kiwiot_ws/logo.ico"
   }
   
