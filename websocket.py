@@ -140,6 +140,7 @@ async def update_device_state(hass, device_id, event_data):
             if hasattr(entity, "_device") and entity._device.device_id == device_id
         ]
         
+
         for entity in device_entities:
             if isinstance(entity, KiwiLockStatus):
                 # 更新状态实体

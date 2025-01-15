@@ -16,7 +16,6 @@ from homeassistant.const import STATE_UNKNOWN
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
-# 允许加载截断的图像
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class GroupEntity(Entity):

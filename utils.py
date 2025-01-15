@@ -93,23 +93,30 @@ async def convert_wsevent_format(event_data: dict) -> dict:
         5: "微信",
         6: "FACE"
     } 
-    converted_data =  {
-        "device_id": event_data.get("did"),
-        "name": event_data.get("name"),
-        "level": event_data.get("level"),
-        "created_at": event_data.get("created_at"),
-        "data": {
+    
+    data = event_data.get("data", {})
+    if not data:
+        formatted_data = {}
+    else:
+        formatted_data = {
             "image": {
-                "uri": event_data.get("data", {}).get("image_uri")
+                "uri": data.get("image_uri")
             },
             "lock_user": {
-                "id": event_data.get("data", {}).get("lock_user", {}).get("id"),
+                "id": data.get("lock_user", {}).get("id"),
                 "type": USER_TYPE_MAP.get(
-                    event_data.get("data", {}).get("lock_user", {}).get("type"),
+                    data.get("lock_user", {}).get("type"),
                     "UNKNOWN"
                 )
             }
         }
+
+    converted_data = {
+        "device_id": event_data.get("did"),
+        "name": event_data.get("name"),
+        "level": event_data.get("level"),
+        "created_at": event_data.get("created_at"),
+        "data": formatted_data
     }
   
 
