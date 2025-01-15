@@ -131,7 +131,6 @@ async def handle_websocket_messages(ws, hass):
 async def update_device_state(hass, device_id, event_data):
     """根据WebSocket消息更新设备实体状态"""
     try:
-        # 获取与此设备关联的所有实体
         device_entities = [
             entity for entity in hass.data[DOMAIN].values()
             for entity_list in entity.values()
@@ -139,21 +138,21 @@ async def update_device_state(hass, device_id, event_data):
             for entity in entity_list.get("entities", [])
             if hasattr(entity, "_device") and entity._device.device_id == device_id
         ]
-        
+
+        has_data = bool(event_data.get("data"))
+        has_image = bool(event_data.get("data", {}).get("image"))
 
         for entity in device_entities:
             if isinstance(entity, KiwiLockStatus):
-                # 更新状态实体
                 entity._event = event_data
                 entity._event_time = datetime.fromisoformat(
                     event_data["created_at"].replace('Z', '+00:00')
                 ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+                await entity.async_update_ha_state(True)
                 
-            elif isinstance(entity, KiwiLockCamera):
-                # 更新摄像头实体
+            elif isinstance(entity, KiwiLockCamera) and has_data and has_image:
                 entity._event_data = event_data
                 if event_data.get("name") == "HUMAN_WANDERING":
-                    # 获取新的视频流信息
                     stream_id = event_data.get("data", {}).get("stream_id")
                     if stream_id:
                         session = hass.data[DOMAIN]["session"]
@@ -162,10 +161,9 @@ async def update_device_state(hass, device_id, event_data):
                             hass, token, device_id, session, stream_id
                         )
                         entity._video_info = video_info
-            
-            # 通知Home Assistant更新实体状态
-            async_dispatcher_send(hass, f"{DOMAIN}_{device_id}_update")
-            await entity.async_update_ha_state(True)
+                await entity.async_update_ha_state(True)
+
+        async_dispatcher_send(hass, f"{DOMAIN}_{device_id}_update")
             
     except Exception as e:
         _LOGGER.error(f"更新设备状态失败: {e}，错误数据结构：{event_data}")
