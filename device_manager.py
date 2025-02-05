@@ -27,7 +27,7 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
             for device_info in devices:
                 if device_info["type"] == "LOCK":
                     lock_device = KiwiLockDevice(hass, device_info, group["gid"], group["name"])
-                    _LOGGER.debug(f"设备信息: {lock_device.device_info}")  
+                    _LOGGER.info(f"设备信息: {lock_device.device_info}")  
 
                     users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
                     events = await get_llock_info(hass, access_token, device_info["did"], session)
@@ -42,8 +42,8 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     _LOGGER.info(f"图像事件: {video_info}")
 
                     device_entities = [
-                        KiwiLockInfo(lock_device, group),
-                        KiwiLockStatus(lock_device, latest_event, history_events),
+                        KiwiLockInfo(hass, lock_device, group),
+                        KiwiLockStatus(hass, lock_device, latest_event, history_events),
                         KiwiLockCamera(hass, lock_device, latest_data_event, video_info)
                     ]
 

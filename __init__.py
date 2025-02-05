@@ -12,7 +12,7 @@ from .device_manager import initialize_devices_and_groups
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.CAMERA]
+PLATFORMS = [Platform.SENSOR, Platform.CAMERA]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up KiwiOT integration from a config entry."""
@@ -49,18 +49,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # 初始化设备和组信息
     try:
         entities_to_add = []
+        entities_by_device = {}
 
         def add_entities_callback(new_entities):
+            """按设备ID组织实体"""
+            nonlocal entities_by_device
+            for entity in new_entities:
+                if hasattr(entity, '_device'):
+                    device_id = entity._device.device_id
+                    if device_id not in entities_by_device:
+                        entities_by_device[device_id] = []
+                    entities_by_device[device_id].append(entity)
             entities_to_add.extend(new_entities)
 
         await initialize_devices_and_groups(hass, access_token, session, add_entities_callback)
         if not entities_to_add:
             return False
 
-        # 存储创建的实体
-        hass.data[DOMAIN][entry.entry_id] = {
-            "entities": entities_to_add
-        }
+        # 存储创建的实体，按设备ID组织
+        hass.data[DOMAIN].update({
+            "session": session,
+            "access_token": access_token,
+            "devices": entities_by_device,
+            entry.entry_id: {
+                "entities": entities_to_add
+            }
+        })
 
         # 注册平台
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

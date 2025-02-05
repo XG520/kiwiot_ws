@@ -19,9 +19,9 @@ def generate_uuid():
     """生成符合特定格式的 UUID 字符串。"""
     def replace_x_or_y(match):
         char = match.group(0)
-        if char == 'x':
+        if (char == 'x'):
             return hex(random.randint(0, 15))[2]
-        elif char == 'y':
+        elif (char == 'y'):
             return hex(random.randint(8, 11))[2]
 
     uuid_pattern = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
@@ -37,6 +37,13 @@ async def start_websocket_connection(hass, access_token, session):
     
     while retry_count < max_retries:
         try:
+            if session.closed:
+                _LOGGER.warning("Session已关闭,停止WebSocket连接")
+                return
+            if DOMAIN not in hass.data:
+                _LOGGER.warning("集成已被移除,停止WebSocket连接")
+                return
+                
             async with session.ws_connect(ws_url) as ws:
                 _LOGGER.info(f"WebSocket 连接已建立 (重试次数: {retry_count})")
                 
@@ -45,28 +52,39 @@ async def start_websocket_connection(hass, access_token, session):
                     asyncio.create_task(handle_websocket_messages(ws, hass))  
                 ]
                 
-                # 等待任务完成或异常
                 try:
                     done, pending = await asyncio.wait(
                         tasks, 
                         return_when=asyncio.FIRST_EXCEPTION
                     )
-                    # 取消未完成的任务
+                    
                     for task in pending:
                         task.cancel()
-                    # 检查异常    
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            pass
+                            
+                    # 检查任务异常
                     for task in done:
                         if task.exception():
                             raise task.exception()
-                except Exception as e:
-                    _LOGGER.error(f"WebSocket 任务异常: {e}")
-                    raise
+                            
+                except asyncio.CancelledError:
+                    _LOGGER.info("WebSocket任务被取消")
+                    return
                     
-        except Exception as e:
+        except aiohttp.ClientError as e:
+            if "Session is closed" in str(e):
+                _LOGGER.warning("Session已关闭,停止重试")
+                return
             _LOGGER.error(f"WebSocket 连接错误: {e}")
             retry_count += 1
             
         if retry_count < max_retries:
+            if DOMAIN not in hass.data or session.closed:
+                _LOGGER.warning("集成已被移除或session已关闭,停止重试")
+                return
             wait_time = retry_delay * (2 ** retry_count)
             await asyncio.sleep(wait_time)
         else:
@@ -74,7 +92,7 @@ async def start_websocket_connection(hass, access_token, session):
             break
 
 async def send_heartbeat(ws):
-    """发送心跳消息."""
+    """发送心跳消息。"""
     interval = 30
     try:
         while True:
@@ -105,7 +123,7 @@ async def handle_websocket_messages(ws, hass):
             if msg.type == aiohttp.WSMsgType.TEXT:
                 # 解析消息
                 data = json.loads(msg.data)
-                _LOGGER.info(f"接收到消息: {data}")
+                #_LOGGER.info(f"接收到消息: {data}")
                 # 检查是否是设备事件消息
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):
@@ -131,37 +149,39 @@ async def handle_websocket_messages(ws, hass):
 async def update_device_state(hass, device_id, event_data):
     """根据WebSocket消息更新设备实体状态"""
     try:
-        device_entities = [
-            entity for entity in hass.data[DOMAIN].values()
-            for entity_list in entity.values()
-            if isinstance(entity_list, list)
-            for entity in entity_list.get("entities", [])
-            if hasattr(entity, "_device") and entity._device.device_id == device_id
-        ]
+        device_entities = []
+        domain_data = hass.data.get(DOMAIN, {})
+        
+        # 从设备映射中获取实体
+        _LOGGER.info(f"打印实体: {domain_data}")
+        if "devices" in domain_data and device_id in domain_data["devices"]:
+            device_entities = domain_data["devices"][device_id]
+        
+        if not device_entities:
+            _LOGGER.warning(f"未找到设备ID {device_id} 对应的实体")
+            return
 
-        has_data = bool(event_data.get("data"))
-        has_image = bool(event_data.get("data", {}).get("image"))
-
+        # 更新状态
         for entity in device_entities:
             if isinstance(entity, KiwiLockStatus):
-                entity._event = event_data
-                entity._event_time = datetime.fromisoformat(
-                    event_data["created_at"].replace('Z', '+00:00')
-                ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
-                await entity.async_update_ha_state(True)
-                
-            elif isinstance(entity, KiwiLockCamera) and has_data and has_image:
-                entity._event_data = event_data
-                if event_data.get("name") == "HUMAN_WANDERING":
-                    stream_id = event_data.get("data", {}).get("stream_id")
-                    if stream_id:
-                        session = hass.data[DOMAIN]["session"]
-                        token = hass.data[DOMAIN]["access_token"]
-                        video_info = await get_llock_video(
-                            hass, token, device_id, session, stream_id
-                        )
-                        entity._video_info = video_info
-                await entity.async_update_ha_state(True)
+                try:
+                    entity._event = event_data
+                    if "created_at" in event_data:
+                        entity._event_time = datetime.fromisoformat(
+                            event_data["created_at"].replace('Z', '+00:00')
+                        ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+                    await entity.async_update_ha_state(True)
+                    _LOGGER.debug(f"已更新设备 {device_id} 的状态")
+                except Exception as e:
+                    _LOGGER.error(f"更新设备状态失败: {e}")
+
+            if isinstance(entity, KiwiLockCamera) and event_data.get("data"):
+                try:
+                    entity._event_data = event_data
+                    await entity.async_update_ha_state(True)
+                    _LOGGER.debug(f"已更新设备 {device_id} 的相机状态")
+                except Exception as e:
+                    _LOGGER.error(f"更新相机实体失败: {e}")
 
         async_dispatcher_send(hass, f"{DOMAIN}_{device_id}_update")
             
