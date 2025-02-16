@@ -43,10 +43,10 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     _LOGGER.info(f"图像事件: {video_info}")
 
                     device_entities = [
-                        KiwiLockStatus(hass, lock_device, latest_event, history_events),  # 状态实体放第一位
-                        KiwiLockEvent(hass, lock_device, latest_event, history_events, users),  # 事件实体放第二位
-                        KiwiLockInfo(hass, lock_device, group),  # 信息实体放第三位
-                        KiwiLockCamera(hass, lock_device, latest_data_event, video_info)  # 相机实体放第四位
+                        KiwiLockStatus(hass, lock_device, latest_event, history_events),  
+                        KiwiLockEvent(hass, lock_device, latest_event, history_events, users),  
+                        KiwiLockInfo(hass, lock_device, group),  
+                        KiwiLockCamera(hass, lock_device, latest_data_event, video_info) 
                     ]
 
                     if users:
