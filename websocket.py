@@ -6,11 +6,11 @@ import random
 import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from .entity import KiwiLockStatus, KiwiLockCamera
+from .entity import KiwiLockEvent, KiwiLockCamera, KiwiLockStatus
 from .const import LOGGER_NAME, WS_URL, DOMAIN
 from .utils import convert_wsevent_format
-from .userinfo import get_llock_video
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from .userinfo import get_llock_userinfo  # 添加这行导入
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -123,7 +123,7 @@ async def handle_websocket_messages(ws, hass):
             if msg.type == aiohttp.WSMsgType.TEXT:
                 # 解析消息
                 data = json.loads(msg.data)
-                #_LOGGER.info(f"接收到消息: {data}")
+                _LOGGER.info(f"接收到消息: {data}")
                 # 检查是否是设备事件消息
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):
@@ -152,8 +152,18 @@ async def update_device_state(hass, device_id, event_data):
         device_entities = []
         domain_data = hass.data.get(DOMAIN, {})
         
+        # 获取访问令牌和会话
+        access_token = domain_data.get("access_token")
+        session = domain_data.get("session")
+        
+        if not access_token or not session:
+            _LOGGER.error("无法获取access_token或session")
+            return
+            
+        # 获取最新的用户信息
+        users = await get_llock_userinfo(hass, access_token, device_id, session)
+        
         # 从设备映射中获取实体
-        _LOGGER.info(f"打印实体: {domain_data}")
         if "devices" in domain_data and device_id in domain_data["devices"]:
             device_entities = domain_data["devices"][device_id]
         
@@ -163,7 +173,20 @@ async def update_device_state(hass, device_id, event_data):
 
         # 更新状态
         for entity in device_entities:
-            if isinstance(entity, KiwiLockStatus):
+            if isinstance(entity, KiwiLockEvent):
+                try:
+                    entity._event = event_data
+                    entity._users = users 
+                    if "created_at" in event_data:
+                        entity._event_time = datetime.fromisoformat(
+                            event_data["created_at"].replace('Z', '+00:00')
+                        ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+                    await entity.async_update_ha_state(True)
+                    _LOGGER.debug(f"已更新设备 {entity} 的状态")
+                except Exception as e:
+                    _LOGGER.error(f"更新设备状态失败: {e}")
+
+            if isinstance(entity, KiwiLockStatus) and event_data.get("name") in {"UNLOCKED", "LOCKED", "LOCK_INDOOR_BUTTON_UNLOCK"}:
                 try:
                     entity._event = event_data
                     if "created_at" in event_data:
@@ -171,7 +194,7 @@ async def update_device_state(hass, device_id, event_data):
                             event_data["created_at"].replace('Z', '+00:00')
                         ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
                     await entity.async_update_ha_state(True)
-                    _LOGGER.debug(f"已更新设备 {device_id} 的状态")
+                    _LOGGER.debug(f"已更新设备 {entity} 的状态")
                 except Exception as e:
                     _LOGGER.error(f"更新设备状态失败: {e}")
 

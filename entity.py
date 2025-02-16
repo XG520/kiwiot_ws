@@ -71,7 +71,6 @@ class KiwiLockStatus(Entity):
         "UNLOCKED": "锁已经打开",
         "LOCKED": "锁已锁上",
         "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
-        "HUMAN_WANDERING": "有人徘徊"
     }
     def __init__(self, hass, device, event, history_events):
         self.hass = hass
@@ -82,6 +81,83 @@ class KiwiLockStatus(Entity):
         self._attr_name = "门锁状态"
         self._event_time = None
         self._event_history = history_events or []
+
+        try:
+            event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
+            event_time_local = event_time_utc.astimezone(ZoneInfo("Asia/Shanghai"))
+            self._event_time = event_time_local.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception as e:
+            _LOGGER.error(f"处理事件时间失败: {e}")
+            self._event_time = str(datetime.now())
+        
+
+    @property
+    def device_info(self):
+        """返回设备信息"""
+        return self._device.get_device_info()
+
+    @property
+    def icon(self):
+        if self._event.get("name") == "UNLOCKED" or self._event.get("name") == "LOCK_INDOOR_BUTTON_UNLOCK":
+            return "mdi:door-open"
+        elif self._event.get("name") == "LOCKED":
+            return "mdi:door-closed-lock"
+        else:
+            return "mdi:alert-circle"
+
+    @property
+    def state(self):
+        name = self._event.get("name", "unknown")   
+        return self.STATE_MAP.get(name, name)
+
+    @property
+    def extra_state_attributes(self):
+        """返回额外的状态属性"""
+        if self._event.get("name") == "LOCK_INDOOR_BUTTON_UNLOCK":
+            attributes = {
+                "更新时间": self._event_time,
+                "设备ID": self._device.device_id,
+                "用户ID": "unknown",
+                "开关锁方式": "门内按键开锁",
+                "图像地址": "unknown",
+                "类型": self._event.get("level", "unknown"),
+            }
+            return attributes
+        else:
+            return {
+                "更新时间": self._event_time,
+                "设备ID": self._device.device_id,
+                "用户ID": self._event.get("data", {}).get("lock_user", {}).get("id", "unknown"),
+                "开关锁方式": self.USER_TYPE_MAP.get(self._event.get("data", {}).get("lock_user", {}).get("type", "unknown"), "unknown"),
+                "图像地址": self._event.get("data", {}).get("image", {}).get("uri", "unknown"),                
+                "类型": self._event.get("level", "unknown"),
+
+            }
+    
+class KiwiLockEvent(Entity):
+    """事件"""
+    USER_TYPE_MAP = {
+        "FACE": "人脸",
+        "PASSWORD": "密码",
+        "FINGERPRINT": "指纹"
+    }
+    STATE_MAP = {
+        "UNLOCKED": "锁已经打开",
+        "LOCKED": "锁已锁上",
+        "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
+        "HUMAN_WANDERING": "有人徘徊",
+        "LOCK_ADD_USER": "添加用户"
+    }
+    def __init__(self, hass, device, event, history_events, users):
+        self.hass = hass
+        self._device = device
+        self._event = event
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{DOMAIN}_{device.device_id}_event"
+        self._attr_name = "门锁事件"
+        self._event_time = None
+        self._event_history = history_events or []
+        self._users = users
 
         try:
             event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
@@ -112,13 +188,27 @@ class KiwiLockStatus(Entity):
         data = self._event.get("data", "unknown")
         lock_user = data.get("lock_user", {})
         event_type = lock_user.get("type", "unknown")
-        id = lock_user.get("id", "unknown")
+        user_id = lock_user.get("id", "unknown")
+        alias = user_id
+        if self._users and isinstance(self._users, list):
+            try:
+                user_id_int = int(user_id) if user_id != "unknown" else -1
+                matching_user = next(
+                    (user for user in self._users 
+                     if user.get("type") == event_type 
+                     and user.get("number") == user_id_int),
+                    None
+                )
+                if matching_user and matching_user.get("alias"):
+                    alias = matching_user["alias"]
+            except (ValueError, TypeError) as e:
+                _LOGGER.warning(f"处理用户ID时出错: {e}")
         if name == "UNLOCKED" and event_type == "FACE":
-            return f"{id}人脸解锁"
+            return f"{alias}人脸解锁"
         elif name == "UNLOCKED" and event_type == "PASSWORD":
-            return f"{id}密码解锁"
+            return f"{alias}密码解锁"
         elif name == "UNLOCKED" and event_type == "FINGERPRINT":
-            return f"{id}指纹解锁"
+            return f"{alias}指纹解锁"
         else:    
             return self.STATE_MAP.get(name, name)
 
@@ -197,8 +287,8 @@ class KiwiLockUser(Entity):
     def extra_state_attributes(self):
         """额外属性"""
         return {
-            "type": self._user_type,
-            "number": self._user_number,
+            "类型": self._user_type,
+            "用户id": self._user_number,
             "created_at": self._user_info.get("created_at"),
             "updated_at": self._user_info.get("updated_at")
         }

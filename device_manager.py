@@ -3,7 +3,7 @@ from aiohttp import ClientSession
 from homeassistant.core import HomeAssistant
 from .const import LOGGER_NAME
 from .userinfo import get_ggid, get_ddevices, get_llock_userinfo, get_llock_info, get_llock_video
-from .entity import KiwiLockDevice, KiwiLockInfo, KiwiLockStatus, KiwiLockUser, KiwiLockCamera
+from .entity import KiwiLockDevice, KiwiLockInfo, KiwiLockEvent, KiwiLockUser, KiwiLockCamera, KiwiLockStatus
 from .utils import get_latest_event, get_history_events, get_latest_event_with_data
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
@@ -30,6 +30,7 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     _LOGGER.info(f"设备信息: {lock_device.device_info}")  
 
                     users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
+                    _LOGGER.info(f"用户数据结构示例: {users}")
                     events = await get_llock_info(hass, access_token, device_info["did"], session)
                     latest_event = await get_latest_event(events)
                     latest_data_event = await get_latest_event_with_data(events)
@@ -43,12 +44,13 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
 
                     device_entities = [
                         KiwiLockInfo(hass, lock_device, group),
-                        KiwiLockStatus(hass, lock_device, latest_event, history_events),
+                        KiwiLockStatus(hass, lock_device, latest_event, history_events),                        
+                        KiwiLockEvent(hass, lock_device, latest_event, history_events, users),
                         KiwiLockCamera(hass, lock_device, latest_data_event, video_info)
                     ]
 
                     if users:
-                        _LOGGER.info(f"用户数据结构示例: {users[0]}")  
+                        #_LOGGER.info(f"用户数据结构示例: {users[0]}")  
                         for user_count, user in enumerate(users, start=1):
                             try:
                                 user_id = user.get("number", "unknown")
