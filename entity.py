@@ -9,6 +9,7 @@ from PIL import Image, ImageFile
 from io import BytesIO
 from homeassistant.components.camera import Camera
 from homeassistant.const import STATE_UNKNOWN
+from homeassistant.const import EntityCategory
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -45,6 +46,9 @@ class KiwiLockInfo(Entity):
         self._attr_unique_id = f"{DOMAIN}_{device.device_id}_info"
         self._attr_name = "家庭"
         self._group = group
+        self._attr_entity_category = None
+        self._attr_translation_key = "lock_info"
+        self._attr_should_poll = False
 
     @property
     def device_info(self):
@@ -81,6 +85,11 @@ class KiwiLockStatus(Entity):
         self._attr_name = "门锁状态"
         self._event_time = None
         self._event_history = history_events or []
+        self._attr_entity_category = None 
+        self._attr_entity_registry_enabled_default = True
+        self._attr_entity_registry_visible_default = True
+        self._attr_translation_key = "lock_status"
+        self._attr_should_poll = False
 
         try:
             event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
@@ -158,6 +167,11 @@ class KiwiLockEvent(Entity):
         self._event_time = None
         self._event_history = history_events or []
         self._users = users
+        self._attr_entity_category = None  
+        self._attr_entity_registry_enabled_default = True
+        self._attr_entity_registry_visible_default = True
+        self._attr_translation_key = "lock_event"
+        self._attr_should_poll = False
 
         try:
             event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
@@ -246,6 +260,9 @@ class KiwiLockUser(Entity):
         self._user_number = user_info.get("number", "unknown")
         self._device_id = device_id
         self._unique_id = unique_id
+        self._attr_entity_category = EntityCategory.CONFIG 
+        self._attr_translation_key = "lock_user"
+        self._attr_should_poll = False
         
     @property
     def name(self):

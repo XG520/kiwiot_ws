@@ -17,5 +17,21 @@
           "identifier_invalid_format": "手机号必须以+86开头且为14位",
           "missing_fields": "请填写所有必填项"
       }
+  },
+  "entity": {
+    "sensor": {
+      "lock_status": {
+        "name": "门锁状态"
+      },
+      "lock_event": {
+        "name": "门锁事件" 
+      },
+      "lock_info": {
+        "name": "门锁信息"
+      },
+      "lock_user": {
+        "name": "用户信息"
+      }
+    }
   }
 }
