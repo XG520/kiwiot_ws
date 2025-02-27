@@ -33,7 +33,7 @@ class KiwiLockDevice:
             name=f"{self.group_name} - {self.name}",
             manufacturer="KiwiOT",
             model="Smart Lock",
-            via_device=(DOMAIN, f"group_{self.group_id}"),
+            # via_device=(DOMAIN, f"group_{self.group_id}"),
             sw_version=self.device_info.get("version", "unknown")
         )
 
