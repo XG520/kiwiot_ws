@@ -200,9 +200,9 @@ async def update_device_state(hass, device_id, event_data):
 
             if isinstance(entity, KiwiLockCamera) and event_data.get("data"):
                 try:
-                    entity._event_data = event_data
+                    await entity.update_from_event(event_data)
                     await entity.async_update_ha_state(True)
-                    _LOGGER.debug(f"已更新设备 {device_id} 的相机状态")
+                    _LOGGER.debug(f"已更新设备 {device_id} 的相机状态和图片")
                 except Exception as e:
                     _LOGGER.error(f"更新相机实体失败: {e}")
 

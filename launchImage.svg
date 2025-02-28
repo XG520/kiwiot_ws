@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 357.24 357.04">
+  <defs>
+    <linearGradient id="grad1" x1="68.73" x2="68.73" y2="251.34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0068fa" />
+      <stop offset="1" stop-color="#00a7fa" />
+    </linearGradient>
+    <linearGradient id="grad2" x1="178.62" y1="0.31" x2="178.62" y2="357.04" xlink:href="#grad1" />
+  </defs>
+
+  <path d="M.23,127c0,73.37,50,124.36,137,124.36V119.21C137.23,53.37,76.23,0,.23,0h0Z" fill="url(#grad1)" />
+  <path
+    d="M356.84.31h-.24c-75.83,0-137.37,53.06-137.37,118.9v85.6c0,52.81-49.16,95.62-110,95.62C53,300.43,6.69,263.85,0,216.6,8.7,295.41,85.2,357,178.25,357c98.88,0,179-69.44,179-155.29C357.24,199.67,356.84.31,356.84.31Z"
+    fill="url(#grad2)" />
+</svg>

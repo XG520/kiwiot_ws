@@ -9,12 +9,13 @@
       "Pillow",
       "ffmpeg-python>=0.2.0",
       "async-timeout",
-      "pillow"
+      "pillow",
+      "aiofiles"
     ],
     "codeowners": ["@XG520"],
     "config_flow": true,
     "logging": {"level": "info"},
     "iot_class": "Cloud Polling",
-    "icon": "logo.ico"
+    "icon": "launchImage.svg"
   }
   
