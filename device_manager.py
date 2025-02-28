@@ -30,7 +30,7 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     _LOGGER.info(f"设备信息: {lock_device.device_info}")  
 
                     users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
-                    _LOGGER.info(f"用户数据结构示例: {users}")
+                    #_LOGGER.info(f"用户数据结构示例: {users}")
                     events = await get_llock_info(hass, access_token, device_info["did"], session)
                     latest_event = await get_latest_event(events)
                     latest_data_event = await get_latest_event_with_data(events)
