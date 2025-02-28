@@ -74,7 +74,8 @@ class KiwiLockStatus(Entity):
     USER_TYPE_MAP = {
         "FACE": "人脸",
         "PASSWORD": "密码",
-        "FINGERPRINT": "指纹"
+        "FINGERPRINT": "指纹",
+        "CARD": "门卡"
     }
     STATE_MAP = {
         "UNLOCKED": "锁已经打开",
