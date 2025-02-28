@@ -10,6 +10,11 @@ from io import BytesIO
 from homeassistant.components.camera import Camera
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.const import EntityCategory
+from .userinfo import update_lock_user_alias
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.components.text import TextEntity
+from homeassistant.core import callback
+from homeassistant.helpers.typing import StateType
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -148,7 +153,8 @@ class KiwiLockEvent(Entity):
     USER_TYPE_MAP = {
         "FACE": "人脸",
         "PASSWORD": "密码",
-        "FINGERPRINT": "指纹"
+        "FINGERPRINT": "指纹",
+        "CARD": "门卡"
     }
     STATE_MAP = {
         "UNLOCKED": "锁已经打开",
@@ -203,6 +209,7 @@ class KiwiLockEvent(Entity):
         lock_user = data.get("lock_user", {})
         event_type = lock_user.get("type", "unknown")
         user_id = lock_user.get("id", "unknown")
+        #判断是否存在用户别名
         alias = user_id
         if self._users and isinstance(self._users, list):
             try:
@@ -217,12 +224,9 @@ class KiwiLockEvent(Entity):
                     alias = matching_user["alias"]
             except (ValueError, TypeError) as e:
                 _LOGGER.warning(f"处理用户ID时出错: {e}")
-        if name == "UNLOCKED" and event_type == "FACE":
-            return f"{alias}人脸解锁"
-        elif name == "UNLOCKED" and event_type == "PASSWORD":
-            return f"{alias}密码解锁"
-        elif name == "UNLOCKED" and event_type == "FINGERPRINT":
-            return f"{alias}指纹解锁"
+        if name == "UNLOCKED" :
+            the_type = self.USER_TYPE_MAP.get(event_type, event_type)
+            return f"{alias}{the_type}解锁"
         else:    
             return self.STATE_MAP.get(name, name)
 
@@ -243,7 +247,7 @@ class KiwiLockEvent(Entity):
         return attributes
 
 
-class KiwiLockUser(Entity):
+class KiwiLockUser(TextEntity, RestoreEntity):
     """锁用户实体"""
     def __init__(self, hass, lock_device, user_info, device_id, unique_id):
         """初始化锁用户实体
@@ -260,9 +264,12 @@ class KiwiLockUser(Entity):
         self._user_number = user_info.get("number", "unknown")
         self._device_id = device_id
         self._unique_id = unique_id
-        self._attr_entity_category = EntityCategory.CONFIG 
+        self._attr_entity_category = EntityCategory.CONFIG
         self._attr_translation_key = "lock_user"
         self._attr_should_poll = False
+        self._attr_native_value = user_info.get("alias", "")
+        self._attr_mode = "text"
+        self._attr_native_max = 16
         
     @property
     def name(self):
@@ -271,17 +278,9 @@ class KiwiLockUser(Entity):
 
     @property
     def unique_id(self):
-        """唯一标识符"""
-        return self._unique_id  
+        """唯一标识符"""  
+        return self._unique_id
 
-    @property
-    def state(self):
-        alias = self._user_info.get("alias", "")
-        if not alias:
-            return "No Alias"
-        else:
-            return alias
-        
     @property
     def icon(self):
         if self._user_type == "FACE":
@@ -306,9 +305,44 @@ class KiwiLockUser(Entity):
         return {
             "类型": self._user_type,
             "用户id": self._user_number,
-            "created_at": self._user_info.get("created_at"),
+            "created_at": self._user_info.get("created_at"), 
             "updated_at": self._user_info.get("updated_at")
         }
+
+    async def async_set_value(self, value: str) -> None:
+        """处理值的更新"""
+        if len(value) > 16:
+            raise ValueError("别名长度不能超过16个字符")
+            
+        domain_data = self.hass.data.get(DOMAIN, {})
+        access_token = domain_data.get("access_token")
+        session = domain_data.get("session")
+        #_LOGGER.info(f"{domain_data}")
+        if not access_token or not session:
+            raise ValueError("无法获取access_token或session")
+
+        success = await update_lock_user_alias(
+            self.hass,
+            access_token, 
+            self._device_id,
+            self._user_type,
+            self._user_number,
+            value,
+            session
+        )
+        if success:
+            self._attr_native_value = value
+            self.async_write_ha_state()
+        else:
+            raise ValueError("更新别名失败")
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        
+        # 恢复之前的状态
+        last_state = await self.async_get_last_state()
+        if last_state:
+            self._attr_native_value = last_state.state
 
 class KiwiLockCamera(Camera):
     USER_TYPE_MAP = {

@@ -123,7 +123,7 @@ async def handle_websocket_messages(ws, hass):
             if msg.type == aiohttp.WSMsgType.TEXT:
                 # 解析消息
                 data = json.loads(msg.data)
-                _LOGGER.info(f"接收到消息: {data}")
+                #_LOGGER.info(f"接收到消息: {data}")
                 # 检查是否是设备事件消息
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):

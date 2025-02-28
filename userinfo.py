@@ -42,3 +42,37 @@ async def get_llock_info(hass, token, did, session):
 async def get_llock_video(hass, token, did, session, stream_id):
     url = f"{BASE_URL}/api/devices/{did}/streams/{stream_id}?page=1&per_page=15&access_token={token}"
     return await _make_request(hass, session, url, "获取锁信息")
+
+async def update_lock_user_alias(hass, token, did, user_type, user_id, new_alias, session):
+    """更新锁用户别名"""
+    if len(new_alias) > 16:
+        _LOGGER.error("用户别名长度不能超过16个字符")
+        return False
+        
+    _LOGGER.debug(f"更新用户别名: {new_alias}")
+    url = f"{BASE_URL}/api/locks/{did}/users/{user_type}/{user_id}/alias"
+    
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}"
+        }
+        
+        async with session.put(url, json=new_alias, headers=headers) as response:
+            if response.status == 204:
+                _LOGGER.info(f"成功更新用户别名为: {new_alias}")
+                return True
+            else:
+                try:
+                    error_data = await response.json()
+                    _LOGGER.error(f"更新用户别名失败: 状态码 {response.status}, 错误信息: {error_data}")
+                except:
+                    _LOGGER.error(f"更新用户别名失败: 状态码 {response.status}")
+                return False
+                
+    except aiohttp.ClientError as e:
+        _LOGGER.error(f"更新用户别名时发生错误: {e}")
+        return False
+    except Exception as e:
+        _LOGGER.error(f"发生意外错误: {e}")
+        return False
