@@ -147,7 +147,7 @@ class KiwiLockStatus(Entity):
                 "类型": self._event.get("level", "unknown"),
 
             }
-    
+
 class KiwiLockEvent(Entity):
     """事件"""
     USER_TYPE_MAP = {
@@ -161,8 +161,7 @@ class KiwiLockEvent(Entity):
         "LOCKED": "锁已锁上",
         "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
         "HUMAN_WANDERING": "有人徘徊",
-        "LOCK_ADD_USER": "添加用户",
-        "REMOTE_UNLOCK": "远程开锁"
+        "LOCK_ADD_USER": "添加用户"
     }
     def __init__(self, hass, device, event, history_events, users):
         self.hass = hass
@@ -396,7 +395,7 @@ class KiwiLockCamera(Camera):
             return None
 
         image_data = await self._image_cache.get_image(url)
-        _LOGGER.debug(f"图片获取{'成功' if image_data else '失败'}")
+        _LOGGER.info(f"图片获取{'成功' if image_data else '失败'}")
         return image_data
 
     async def update_from_event(self, event_data):
@@ -424,7 +423,6 @@ class KiwiLockCamera(Camera):
         data = self._event_data.get("data", {})
         lock_user = data.get("lock_user", {})
         
-        # 获取用户类型并转换
         user_type = lock_user.get("type", "")
         displayed_type = self.USER_TYPE_MAP.get(user_type, user_type)
         

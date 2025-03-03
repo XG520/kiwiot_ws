@@ -123,7 +123,6 @@ async def convert_wsevent_format(event_data: dict) -> dict:
     return converted_data
 
 async def convert_media_event_format(event_data: dict) -> dict:
-    """转换包含媒体信息的事件数据格式"""
     try:
         # 构建格式化的data部分
         formatted_data = {
@@ -165,22 +164,19 @@ class ImageCache:
         self._executor = ThreadPoolExecutor(max_workers=2)
 
     def _get_cache_filename(self, url: str) -> str:
-        """生成缓存文件名."""
+        _LOGGER.info( "保存文件：" + hashlib.md5(url.encode()).hexdigest() + ".jpg")
         return hashlib.md5(url.encode()).hexdigest() + ".jpg"
 
     async def _save_image_to_file(self, image: Image.Image, cache_file: Path) -> None:
-        """异步保存图片到文件."""
         def _save():
             image.save(cache_file, format="JPEG")
         await self.hass.async_add_executor_job(_save)
 
     async def _read_file_bytes(self, cache_file: Path) -> bytes:
-        """异步读取文件内容."""
         async with aiofiles.open(cache_file, mode='rb') as file:
             return await file.read()
 
     async def clear_cache(self) -> None:
-        """清除当前缓存."""
         if self._current_cache_file and os.path.exists(self._current_cache_file):
             try:
                 os.remove(self._current_cache_file)
@@ -190,7 +186,6 @@ class ImageCache:
                 _LOGGER.error(f"清除缓存文件失败: {e}")
 
     async def get_image(self, url: str) -> Optional[bytes]:
-        """获取图片，优先使用缓存."""
         if not url:
             return None
 
@@ -199,6 +194,7 @@ class ImageCache:
         # 如果URL相同且缓存存在，直接返回缓存
         if self._current_image_url == url and cache_file.exists():
             try:
+                _LOGGER.info(f"使用缓存文件: {cache_file}")
                 return await self._read_file_bytes(cache_file)
             except Exception as e:
                 _LOGGER.error(f"读取缓存文件失败: {e}")
