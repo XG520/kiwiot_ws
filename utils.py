@@ -18,14 +18,12 @@ async def get_latest_event(events: List[Dict]) -> Optional[Dict]:
         if not events:
             return None
             
-        # 按创建时间排序事件
         sorted_events = sorted(
             events,
             key=lambda x: datetime.fromisoformat(x.get("created_at", "").replace('Z', '+00:00')),
             reverse=True
         )
         
-        # 获取最新事件
         latest_event = sorted_events[0]
         _LOGGER.debug(f"最新事件: {latest_event}")
         
@@ -41,14 +39,12 @@ async def get_latest_event_with_data(events: List[Dict]) -> Optional[Dict]:
         if not events:
             return None
             
-        # 按创建时间排序事件
         sorted_events = sorted(
             events,
             key=lambda x: datetime.fromisoformat(x.get("created_at", "").replace('Z', '+00:00')),
             reverse=True
         )
         
-        # 查找第一个包含data且不为空的事件
         for event in sorted_events:
             if (event.get("data") and 
                 isinstance(event["data"], dict) and 
@@ -68,14 +64,12 @@ async def get_history_events(events: List[Dict]) -> List[Dict]:
         if not events or len(events) <= 1:
             return []
             
-        # 按创建时间排序事件
         sorted_events = sorted(
             events,
             key=lambda x: datetime.fromisoformat(x.get("created_at", "").replace('Z', '+00:00')),
             reverse=True
         )
         
-        # 返回除第一个事件外的所有事件
         history_events = sorted_events[1:]
         _LOGGER.debug(f"历史事件数量: {len(history_events)}")
         
@@ -124,22 +118,22 @@ async def convert_wsevent_format(event_data: dict) -> dict:
 
 async def convert_media_event_format(event_data: dict) -> dict:
     try:
-        # 构建格式化的data部分
         formatted_data = {
             "image": {
                 "uri": event_data.get("data", {}).get("image_uri")
+            },
+            "lock_user": {
+                "id": "UNKNOWN",
+                "type": "UNKNOWN"
             }
         }
         
-        # 添加media信息
         if "data" in event_data and "media" in event_data["data"]:
             formatted_data["media"] = event_data["data"]["media"]
             
-        # 添加stream_id
         if "data" in event_data and "stream_id" in event_data["data"]:
             formatted_data["stream_id"] = event_data["data"]["stream_id"]
 
-        # 构建最终的转换数据
         converted_data = {
             "device_id": event_data.get("did"),
             "name": event_data.get("name"),
@@ -162,15 +156,37 @@ class ImageCache:
         self._current_image_url = None
         self._current_cache_file = None
         self._executor = ThreadPoolExecutor(max_workers=2)
+        self._max_cache_files = 10 
 
-    def _get_cache_filename(self, url: str) -> str:
-        _LOGGER.info( "保存文件：" + hashlib.md5(url.encode()).hexdigest() + ".jpg")
-        return hashlib.md5(url.encode()).hexdigest() + ".jpg"
+    async def _cleanup_old_cache(self):
+        """清理旧的缓存文件，只保留最近的10个文件"""
+        try:
+            cache_files = sorted(
+                [f for f in self._cache_dir.glob("*.jpg")],
+                key=lambda x: x.stat().st_mtime,
+                reverse=True
+            )
+            
+            if len(cache_files) > self._max_cache_files:
+                for old_file in cache_files[self._max_cache_files:]:
+                    try:
+                        old_file.unlink()
+                        _LOGGER.debug(f"删除旧缓存文件: {old_file}")
+                    except Exception as e:
+                        _LOGGER.error(f"删除缓存文件失败: {e}")
+
+        except Exception as e:
+            _LOGGER.error(f"清理缓存文件失败: {e}")
 
     async def _save_image_to_file(self, image: Image.Image, cache_file: Path) -> None:
         def _save():
             image.save(cache_file, format="JPEG")
+        
         await self.hass.async_add_executor_job(_save)
+        await self._cleanup_old_cache()  
+    def _get_cache_filename(self, url: str) -> str:
+        _LOGGER.info( "保存文件：" + hashlib.md5(url.encode()).hexdigest() + ".jpg")
+        return hashlib.md5(url.encode()).hexdigest() + ".jpg"
 
     async def _read_file_bytes(self, cache_file: Path) -> bytes:
         async with aiofiles.open(cache_file, mode='rb') as file:

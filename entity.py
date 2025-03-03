@@ -9,7 +9,7 @@ from PIL import ImageFile
 from homeassistant.components.camera import Camera
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.const import EntityCategory
-from .userinfo import update_lock_user_alias
+from .userinfo import update_lock_user_alias, get_llock_userinfo
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.components.text import TextEntity
 
@@ -313,35 +313,69 @@ class KiwiLockUser(TextEntity, RestoreEntity):
 
     async def async_set_value(self, value: str) -> None:
         """处理值的更新"""
+        if not value or value.strip() == "":
+            raise ValueError("别名不能为空")
         if len(value) > 16:
             raise ValueError("别名长度不能超过16个字符")
             
         domain_data = self.hass.data.get(DOMAIN, {})
-        access_token = domain_data.get("access_token")
+        token_manager = domain_data.get("token_manager")
         session = domain_data.get("session")
-        #_LOGGER.info(f"{domain_data}")
-        if not access_token or not session:
-            raise ValueError("无法获取access_token或session")
+        access_token = domain_data.get("access_token")
+            
+        if not all([token_manager, session, access_token]):
+            raise ValueError("无法获取必要组件")
 
-        success = await update_lock_user_alias(
-            self.hass,
-            access_token, 
-            self._device_id,
-            self._user_type,
-            self._user_number,
-            value,
-            session
-        )
-        if success:
-            self._attr_native_value = value
-            self.async_write_ha_state()
-        else:
-            raise ValueError("更新别名失败")
+        try:
+            success = await update_lock_user_alias(
+                self.hass,
+                access_token,
+                self._device_id,
+                self._user_type,
+                self._user_number,
+                value,
+                session
+            )
+            if success:
+                self._attr_native_value = value
+                self.async_write_ha_state()
+                return
+                
+        except Exception as e:
+            if "invalid_token" in str(e):
+                _LOGGER.info("Token已失效，尝试刷新...")
+                try:
+                    new_token = await token_manager.get_token(session)
+                    if not new_token:
+                        raise ValueError("刷新token失败")
+                        
+                    domain_data["access_token"] = new_token
+                    success = await update_lock_user_alias(
+                        self.hass,
+                        new_token,
+                        self._device_id,
+                        self._user_type,
+                        self._user_number,
+                        value,
+                        session
+                    )
+                    if success:
+                        self._attr_native_value = value
+                        self.async_write_ha_state()
+                        return
+                        
+                except Exception as token_error:
+                    _LOGGER.error(f"刷新token时发生错误: {token_error}")
+                    raise ValueError(f"更新别名失败: {token_error}")
+            else:
+                _LOGGER.error(f"更新别名时发生错误: {e}")
+                raise ValueError(f"更新别名失败: {e}")
+
+        raise ValueError("更新别名失败")
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
         
-        # 恢复之前的状态
         last_state = await self.async_get_last_state()
         if last_state:
             self._attr_native_value = last_state.state

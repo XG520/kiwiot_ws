@@ -162,7 +162,7 @@ async def update_device_state(hass, device_id, event_data):
             _LOGGER.error("无法获取必要组件")
             return
             
-        # 尝试获取最新的用户信息
+
         try:
             users = await get_llock_userinfo(hass, access_token, device_id, session)
         except Exception as e:
@@ -183,7 +183,6 @@ async def update_device_state(hass, device_id, event_data):
                 _LOGGER.error(f"获取用户信息失败: {e}")
                 return
         
-        # 从设备映射中获取实体
         if "devices" in domain_data and device_id in domain_data["devices"]:
             device_entities = domain_data["devices"][device_id]
         
@@ -191,7 +190,6 @@ async def update_device_state(hass, device_id, event_data):
             _LOGGER.warning(f"未找到设备ID {device_id} 对应的实体")
             return
 
-        # 更新各个实体的状态
         for entity in device_entities:
             try:
                 if isinstance(entity, KiwiLockEvent):

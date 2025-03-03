@@ -4,12 +4,8 @@ from typing import Any, Dict, Optional
 from .const import DOMAIN, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
 
 class KiwiOTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for KiwiOT."""
-
     VERSION = 1.1
-
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
-        """Handle the initial step."""
         errors = {}
 
         if user_input is not None:
