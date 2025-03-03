@@ -227,6 +227,8 @@ class KiwiLockEvent(Entity):
         if name == "UNLOCKED" :
             the_type = self.USER_TYPE_MAP.get(event_type, event_type)
             return f"{alias}{the_type}解锁"
+        elif name == "REMOTE_UNLOCK" and self._event.get("level", "unknown") == "CRITICAL":
+            return f"门铃"
         else:    
             return self.STATE_MAP.get(name, name)
 
@@ -356,8 +358,7 @@ class KiwiLockCamera(Camera):
         "LOCKED": "锁已锁上",
         "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
         "HUMAN_WANDERING": "有人徘徊",
-        "LOCK_ADD_USER": "添加用户",
-        "REMOTE_UNLOCK": "远程开锁"
+        "LOCK_ADD_USER": "添加用户"
     }
 
     def __init__(self, hass, device, event_data, video_info):
@@ -413,7 +414,10 @@ class KiwiLockCamera(Camera):
         if not self._event_data:
             return STATE_UNKNOWN
         name = self._event_data.get("name", "")
-        return self.STATE_MAP.get(name, name)
+        if name == "REMOTE_UNLOCK" and self._event_data.get("level", "unknown") == "CRITICAL":
+            return "门铃"
+        else:
+            return self.STATE_MAP.get(name, name)
 
     @property
     def extra_state_attributes(self):
