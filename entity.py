@@ -1,25 +1,18 @@
 ﻿import logging
-import aiohttp
-import os
 from pathlib import Path
-import hashlib
-import aiofiles
-from concurrent.futures import ThreadPoolExecutor
 
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from .const import DOMAIN, LOGGER_NAME
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from PIL import Image, ImageFile
-from io import BytesIO
+from PIL import ImageFile
 from homeassistant.components.camera import Camera
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.const import EntityCategory
 from .userinfo import update_lock_user_alias
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.components.text import TextEntity
-from homeassistant.core import callback
-from homeassistant.helpers.typing import StateType
+
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -380,88 +373,37 @@ class KiwiLockCamera(Camera):
         self._attr_is_streaming = False
         self._state = STATE_UNKNOWN
         
-        # 添加缓存相关属性
-        self._cache_dir = Path(hass.config.path("custom_components", DOMAIN, "cache"))
-        self._cache_dir.mkdir(parents=True, exist_ok=True)
-        self._current_image_url = None
-        self._current_cache_file = None
-        self._executor = ThreadPoolExecutor(max_workers=2)
-
-    def _get_cache_filename(self, url):
-        return hashlib.md5(url.encode()).hexdigest() + ".jpg"
-
-    async def _save_image_to_file(self, image, cache_file):
-        def _save():
-            image.save(cache_file, format="JPEG")
-        await self.hass.async_add_executor_job(_save)
-
-    async def _read_file_bytes(self, cache_file):
-        async with aiofiles.open(cache_file, mode='rb') as file:
-            return await file.read()
-
-    async def _download_and_cache_image(self, url):
-        cache_file = self._cache_dir / self._get_cache_filename(url)
-        
-        # 如果缓存文件已存在且URL未变，直接返回缓存
-        if self._current_image_url == url and cache_file.exists():
-            try:
-                return await self._read_file_bytes(cache_file)
-            except Exception as ex:
-                _LOGGER.error("读取缓存文件失败: %s", ex)
-        
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        return None
-                    image_data = await response.read()
-                    
-                    # 在线程池中处理图片旋转
-                    def process_image():
-                        image = Image.open(BytesIO(image_data))
-                        return image.rotate(-90, expand=True)
-                    
-                    rotated_image = await self.hass.async_add_executor_job(process_image)
-                    
-                    # 异步保存到缓存
-                    await self._save_image_to_file(rotated_image, cache_file)
-                    
-                    # 更新当前URL和缓存文件路径
-                    self._current_image_url = url
-                    self._current_cache_file = cache_file
-                    
-                    return await self._read_file_bytes(cache_file)
-            except Exception as ex:
-                _LOGGER.error("下载或缓存图片失败: %s", ex)
-                return None
+        cache_dir = Path(hass.config.path("custom_components", DOMAIN, "cache"))
+        from .utils import ImageCache
+        self._image_cache = ImageCache(hass, cache_dir)
 
     async def async_camera_image(self, width=320, height=480):
-        """获取摄像头图片，优先使用缓存"""
+        """获取摄像头图片."""
+        _LOGGER.debug("开始获取相机图片")
+        url = None
         if self._video_info and "media" in self._video_info and "uri" in self._video_info["media"]:
             url = self._video_info["media"]["uri"]
+            _LOGGER.debug(f"使用视频信息URL: {url}")
         elif (self._event_data and 
               "data" in self._event_data and 
               "image" in self._event_data["data"] and 
               "uri" in self._event_data["data"]["image"]):
             url = self._event_data["data"]["image"]["uri"]
-        else:
+            _LOGGER.debug(f"使用事件数据URL: {url}")
+            
+        if not url:
+            _LOGGER.warning("没有找到有效的图片URL")
             return None
 
-        return await self._download_and_cache_image(url)
+        image_data = await self._image_cache.get_image(url)
+        _LOGGER.debug(f"图片获取{'成功' if image_data else '失败'}")
+        return image_data
 
     async def update_from_event(self, event_data):
-        """从新事件更新相机数据"""
+        """从新事件更新相机数据."""
+        _LOGGER.debug(f"更新相机事件数据: {event_data.get('name')}")
         self._event_data = event_data
-        # 强制清除当前图片缓存，确保获取新图片
-        self._current_image_url = None
-        self._current_cache_file = None
-        
-        # 如果存在旧的缓存文件，尝试删除
-        if self._current_cache_file and self._current_cache_file.exists():
-            try:
-                self._current_cache_file.unlink()
-            except Exception as ex:
-                _LOGGER.warning("删除旧缓存文件失败: %s", ex)
+        await self._image_cache.clear_cache()
 
     @property
     def device_info(self):

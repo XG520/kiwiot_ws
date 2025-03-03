@@ -8,9 +8,9 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from .entity import KiwiLockEvent, KiwiLockCamera, KiwiLockStatus
 from .const import LOGGER_NAME, WS_URL, DOMAIN
-from .utils import convert_wsevent_format
+from .utils import convert_wsevent_format, convert_media_event_format
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from .userinfo import get_llock_userinfo  # 添加这行导入
+from .userinfo import get_llock_userinfo
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -30,7 +30,7 @@ def generate_uuid():
 
 async def start_websocket_connection(hass, access_token, session):
     """启动 WebSocket 连接并维护心跳和消息处理."""
-    ws_url = f"{WS_URL}/?access_token={access_token}"
+    ws_url = f"{WS_URL}/?access_token={access_token}" 
     retry_count = 0
     max_retries = 5
     retry_delay = 5
@@ -48,7 +48,7 @@ async def start_websocket_connection(hass, access_token, session):
                 _LOGGER.info(f"WebSocket 连接已建立 (重试次数: {retry_count})")
                 
                 tasks = [
-                    asyncio.create_task(send_heartbeat(ws)),
+                    asyncio.create_task(send_heartbeat(ws)),  
                     asyncio.create_task(handle_websocket_messages(ws, hass))  
                 ]
                 
@@ -121,20 +121,22 @@ async def handle_websocket_messages(ws, hass):
     try:
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
-                # 解析消息
                 data = json.loads(msg.data)
-                #_LOGGER.info(f"接收到消息: {data}")
-                # 检查是否是设备事件消息
+                _LOGGER.info(f"接收到消息: {data}")
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):
                     
                     payload = data.get("payload", {})
                     device_id = payload.get("did")
                     event_name = payload.get("name")
+                    event_type = payload.get("level")
                     if event_name == "UNLOCKED" or event_name == "LOCKED":
                         payload = await convert_wsevent_format(payload)
+                    elif event_type == "CRITICAL" and event_name == "REMOTE_UNLOCK":
+                        payload = await convert_media_event_format(payload)
                     else:
-                        _LOGGER.debug(f"未知事件类型: {payload}")
+                        _LOGGER.warning(f"未知事件类型: {payload}")
+                    _LOGGER.info(f"事件数据格式化: {payload}")
                     # 调用更新实体状态的方法
                     await update_device_state(hass, device_id, payload)
                     
@@ -152,16 +154,35 @@ async def update_device_state(hass, device_id, event_data):
         device_entities = []
         domain_data = hass.data.get(DOMAIN, {})
         
-        # 获取访问令牌和会话
-        access_token = domain_data.get("access_token")
+        # 获取必要的组件
+        token_manager = domain_data.get("token_manager")
         session = domain_data.get("session")
+        access_token = domain_data.get("access_token")
         
-        if not access_token or not session:
-            _LOGGER.error("无法获取access_token或session")
+        if not all([token_manager, session, access_token]):
+            _LOGGER.error("无法获取必要组件")
             return
             
-        # 获取最新的用户信息
-        users = await get_llock_userinfo(hass, access_token, device_id, session)
+        # 尝试获取最新的用户信息
+        try:
+            users = await get_llock_userinfo(hass, access_token, device_id, session)
+        except Exception as e:
+            if "invalid_token" in str(e):
+                _LOGGER.info("Token已失效，尝试刷新...")
+                try:
+                    new_token = await token_manager.get_token(session)
+                    if new_token:
+                        domain_data["access_token"] = new_token
+                        users = await get_llock_userinfo(hass, new_token, device_id, session)
+                    else:
+                        _LOGGER.error("刷新token失败")
+                        return
+                except Exception as token_error:
+                    _LOGGER.error(f"刷新token时发生错误: {token_error}")
+                    return
+            else:
+                _LOGGER.error(f"获取用户信息失败: {e}")
+                return
         
         # 从设备映射中获取实体
         if "devices" in domain_data and device_id in domain_data["devices"]:
@@ -171,46 +192,51 @@ async def update_device_state(hass, device_id, event_data):
             _LOGGER.warning(f"未找到设备ID {device_id} 对应的实体")
             return
 
-        # 更新状态
+        # 更新各个实体的状态
         for entity in device_entities:
-            if isinstance(entity, KiwiLockEvent):
-                try:
-                    entity._event = event_data
-                    entity._users = users 
-                    if "created_at" in event_data:
-                        entity._event_time = datetime.fromisoformat(
-                            event_data["created_at"].replace('Z', '+00:00')
-                        ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
-                    await entity.async_update_ha_state(True)
-                    _LOGGER.debug(f"已更新设备 {entity} 的状态")
-                except Exception as e:
-                    _LOGGER.error(f"更新设备状态失败: {e}")
+            try:
+                if isinstance(entity, KiwiLockEvent):
+                    await update_lock_event(entity, event_data, users)
+                elif isinstance(entity, KiwiLockStatus) and event_data.get("name") in {"UNLOCKED", "LOCKED", "LOCK_INDOOR_BUTTON_UNLOCK"}:
+                    await update_lock_status(entity, event_data)
+                elif isinstance(entity, KiwiLockCamera) and event_data.get("data"):
+                    await update_camera(entity, event_data)
+            except Exception as entity_error:
+                _LOGGER.error(f"更新实体失败: {entity_error}")
+                continue
 
-            if isinstance(entity, KiwiLockStatus) and event_data.get("name") in {"UNLOCKED", "LOCKED", "LOCK_INDOOR_BUTTON_UNLOCK"}:
-                try:
-                    entity._event = event_data
-                    if "created_at" in event_data:
-                        entity._event_time = datetime.fromisoformat(
-                            event_data["created_at"].replace('Z', '+00:00')
-                        ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
-                    await entity.async_update_ha_state(True)
-                    _LOGGER.debug(f"已更新设备 {entity} 的状态")
-                except Exception as e:
-                    _LOGGER.error(f"更新设备状态失败: {e}")
-
-            if isinstance(entity, KiwiLockCamera) and event_data.get("data"):
-                try:
-                    await entity.update_from_event(event_data)
-                    await entity.async_update_ha_state(True)
-                    _LOGGER.debug(f"已更新设备 {device_id} 的相机状态和图片")
-                except Exception as e:
-                    _LOGGER.error(f"更新相机实体失败: {e}")
-
+        # 发送更新通知
         async_dispatcher_send(hass, f"{DOMAIN}_{device_id}_update")
             
     except Exception as e:
         _LOGGER.error(f"更新设备状态失败: {e}，错误数据结构：{event_data}")
 
+async def update_lock_event(entity, event_data, users):
+    """更新门锁事件实体"""
+    entity._event = event_data
+    entity._users = users
+    if "created_at" in event_data:
+        entity._event_time = datetime.fromisoformat(
+            event_data["created_at"].replace('Z', '+00:00')
+        ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+    await entity.async_update_ha_state(True)
+    _LOGGER.debug(f"已更新设备事件状态: {entity}")
+
+async def update_lock_status(entity, event_data):
+    """更新门锁状态实体"""
+    entity._event = event_data
+    if "created_at" in event_data:
+        entity._event_time = datetime.fromisoformat(
+            event_data["created_at"].replace('Z', '+00:00')
+        ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+    await entity.async_update_ha_state(True)
+    _LOGGER.debug(f"已更新门锁状态: {entity}")
+
+async def update_camera(entity, event_data):
+    """更新相机实体"""
+    await entity.update_from_event(event_data)
+    await entity.async_update_ha_state(True)
+    _LOGGER.debug(f"已更新相机状态和图片")
 
 async def stop_websocket_connection(websocket_task):
     """停止 WebSocket 连接任务。"""

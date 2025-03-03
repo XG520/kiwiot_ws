@@ -1,6 +1,14 @@
 ﻿import logging
+import aiohttp
+import aiofiles
 from datetime import datetime
 from typing import List, Dict, Optional
+from pathlib import Path
+import hashlib
+from PIL import Image
+from io import BytesIO
+from concurrent.futures import ThreadPoolExecutor
+import os
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,13 +85,6 @@ async def get_history_events(events: List[Dict]) -> List[Dict]:
         _LOGGER.error(f"获取历史事件失败: {e}")
         return []
     
-async def get_stream_id(data: dict) -> str | None:
-    try:
-        if data.get("name") == "HUMAN_WANDERING":
-            return data.get("data", {}).get("stream_id")
-        return None
-    except Exception:
-        return None
     
 async def convert_wsevent_format(event_data: dict) -> dict:
     USER_TYPE_MAP = {
@@ -118,6 +119,116 @@ async def convert_wsevent_format(event_data: dict) -> dict:
         "created_at": event_data.get("created_at"),
         "data": formatted_data
     }
-  
 
     return converted_data
+
+async def convert_media_event_format(event_data: dict) -> dict:
+    """转换包含媒体信息的事件数据格式"""
+    try:
+        # 构建格式化的data部分
+        formatted_data = {
+            "image": {
+                "uri": event_data.get("data", {}).get("image_uri")
+            }
+        }
+        
+        # 添加media信息
+        if "data" in event_data and "media" in event_data["data"]:
+            formatted_data["media"] = event_data["data"]["media"]
+            
+        # 添加stream_id
+        if "data" in event_data and "stream_id" in event_data["data"]:
+            formatted_data["stream_id"] = event_data["data"]["stream_id"]
+
+        # 构建最终的转换数据
+        converted_data = {
+            "device_id": event_data.get("did"),
+            "name": event_data.get("name"),
+            "level": event_data.get("level"),
+            "created_at": event_data.get("created_at"),
+            "data": formatted_data
+        }
+        
+        return converted_data
+        
+    except Exception as e:
+        _LOGGER.error(f"转换媒体事件数据失败: {e}")
+        return None
+
+class ImageCache:
+    def __init__(self, hass, cache_dir: Path):
+        self.hass = hass
+        self._cache_dir = cache_dir
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
+        self._current_image_url = None
+        self._current_cache_file = None
+        self._executor = ThreadPoolExecutor(max_workers=2)
+
+    def _get_cache_filename(self, url: str) -> str:
+        """生成缓存文件名."""
+        return hashlib.md5(url.encode()).hexdigest() + ".jpg"
+
+    async def _save_image_to_file(self, image: Image.Image, cache_file: Path) -> None:
+        """异步保存图片到文件."""
+        def _save():
+            image.save(cache_file, format="JPEG")
+        await self.hass.async_add_executor_job(_save)
+
+    async def _read_file_bytes(self, cache_file: Path) -> bytes:
+        """异步读取文件内容."""
+        async with aiofiles.open(cache_file, mode='rb') as file:
+            return await file.read()
+
+    async def clear_cache(self) -> None:
+        """清除当前缓存."""
+        if self._current_cache_file and os.path.exists(self._current_cache_file):
+            try:
+                os.remove(self._current_cache_file)
+                self._current_image_url = None
+                self._current_cache_file = None
+            except Exception as e:
+                _LOGGER.error(f"清除缓存文件失败: {e}")
+
+    async def get_image(self, url: str) -> Optional[bytes]:
+        """获取图片，优先使用缓存."""
+        if not url:
+            return None
+
+        cache_file = self._cache_dir / self._get_cache_filename(url)
+        
+        # 如果URL相同且缓存存在，直接返回缓存
+        if self._current_image_url == url and cache_file.exists():
+            try:
+                return await self._read_file_bytes(cache_file)
+            except Exception as e:
+                _LOGGER.error(f"读取缓存文件失败: {e}")
+
+        # 下载新图片
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        _LOGGER.error(f"下载图片失败: HTTP {response.status}")
+                        return None
+
+                    image_data = await response.read()
+                    
+                    # 在线程池中处理图片
+                    def process_image():
+                        image = Image.open(BytesIO(image_data))
+                        return image.rotate(-90, expand=True)
+                    
+                    rotated_image = await self.hass.async_add_executor_job(process_image)
+                    
+                    # 保存到缓存
+                    await self._save_image_to_file(rotated_image, cache_file)
+                    
+                    # 更新缓存信息
+                    self._current_image_url = url
+                    self._current_cache_file = cache_file
+                    
+                    return await self._read_file_bytes(cache_file)
+
+        except Exception as e:
+            _LOGGER.error(f"处理图片失败: {e}")
+            return None
