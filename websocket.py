@@ -137,7 +137,7 @@ async def handle_websocket_messages(ws, hass):
                     else:
                         _LOGGER.warning(f"未知事件类型: {payload}")
                     _LOGGER.info(f"事件数据格式化: {payload}")
-                    # 调用更新实体状态的方法
+
                     await update_device_state(hass, device_id, payload)
                     
             elif msg.type == aiohttp.WSMsgType.ERROR:
@@ -154,7 +154,6 @@ async def update_device_state(hass, device_id, event_data):
         device_entities = []
         domain_data = hass.data.get(DOMAIN, {})
         
-        # 获取必要的组件
         token_manager = domain_data.get("token_manager")
         session = domain_data.get("session")
         access_token = domain_data.get("access_token")
@@ -205,7 +204,6 @@ async def update_device_state(hass, device_id, event_data):
                 _LOGGER.error(f"更新实体失败: {entity_error}")
                 continue
 
-        # 发送更新通知
         async_dispatcher_send(hass, f"{DOMAIN}_{device_id}_update")
             
     except Exception as e:

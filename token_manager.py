@@ -16,18 +16,15 @@ class TokenManager:
         self._lock = Lock()
         
     async def get_token(self, session):
-        """获取当前token,如果无效则刷新"""
         async with self._lock:
             return await self._get_or_refresh_token(session)
             
     async def _get_or_refresh_token(self, session):
-        """获取或刷新token"""
         if not self._access_token:
             self._access_token = await self._fetch_new_token(session)
         return self._access_token
         
     async def validate_and_refresh(self, session, response_data):
-        """验证响应并在需要时刷新token"""
         if isinstance(response_data, str):
             try:
                 response_data = json.loads(response_data)
