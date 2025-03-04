@@ -85,8 +85,11 @@ async def convert_wsevent_format(event_data: dict) -> dict:
         0: "门内", 
         1: "FINGERPRINT",
         2: "PASSWORD",
+        3: "CARD",
         5: "微信",
-        6: "FACE"
+        6: "FACE",
+        7: "掌纹",
+        9: "临时密码"
     } 
     
     data = event_data.get("data", {})
@@ -101,7 +104,7 @@ async def convert_wsevent_format(event_data: dict) -> dict:
                 "id": data.get("lock_user", {}).get("id"),
                 "type": USER_TYPE_MAP.get(
                     data.get("lock_user", {}).get("type"),
-                    "UNKNOWN"
+                    data.get("lock_user", {}).get("type")
                 )
             }
         }
