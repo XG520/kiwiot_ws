@@ -82,7 +82,7 @@ async def get_history_events(events: List[Dict]) -> List[Dict]:
     
 async def convert_wsevent_format(event_data: dict) -> dict:
     USER_TYPE_MAP = {
-        0: "门内", 
+        0: "LOCK_INDOOR_BUTTON_UNLOCK", 
         1: "FINGERPRINT",
         2: "PASSWORD",
         3: "CARD",
