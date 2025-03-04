@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .entity import KiwiLockCamera
+from .entity.lock import KiwiLockCamera
 
 async def async_setup_entry(
     hass: HomeAssistant,

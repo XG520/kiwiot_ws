@@ -2,14 +2,14 @@
 from pathlib import Path
 
 from homeassistant.helpers.entity import Entity, DeviceInfo
-from .const import DOMAIN, LOGGER_NAME
+from ..const import DOMAIN, LOGGER_NAME
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from PIL import ImageFile
 from homeassistant.components.camera import Camera
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.const import EntityCategory
-from .userinfo import update_lock_user_alias, get_llock_userinfo
+from ..conn.userinfo import update_lock_user_alias
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.components.text import TextEntity
 
@@ -408,7 +408,7 @@ class KiwiLockCamera(Camera):
         self._state = STATE_UNKNOWN
         
         cache_dir = Path(hass.config.path("custom_components", DOMAIN, "cache"))
-        from .utils import ImageCache
+        from ..utils import ImageCache
         self._image_cache = ImageCache(hass, cache_dir)
 
     async def async_camera_image(self, width=320, height=480):

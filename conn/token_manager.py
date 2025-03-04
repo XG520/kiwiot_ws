@@ -1,7 +1,7 @@
 import aiohttp
 import logging
 import json
-from .const import AUTH_URL, LOGGER_NAME
+from ..const import AUTH_URL, LOGGER_NAME
 from asyncio import Lock
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
