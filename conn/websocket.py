@@ -215,6 +215,9 @@ async def update_lock_event(entity, event_data, users):
         entity._event_time = datetime.fromisoformat(
             event_data["created_at"].replace('Z', '+00:00')
         ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+        entity._notify_time = datetime.fromisoformat(
+            event_data["created_at"].replace('Z', '+00:00')
+        ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%H:%M:%S")
     await entity.async_update_ha_state(True)
     _LOGGER.debug(f"已更新设备事件状态: {entity}")
 
@@ -225,6 +228,9 @@ async def update_lock_status(entity, event_data):
         entity._event_time = datetime.fromisoformat(
             event_data["created_at"].replace('Z', '+00:00')
         ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+        entity._notify_time = datetime.fromisoformat(
+            event_data["created_at"].replace('Z', '+00:00')
+        ).astimezone(ZoneInfo("Asia/Shanghai")).strftime("%H:%M:%S")
     await entity.async_update_ha_state(True)
     _LOGGER.debug(f"已更新门锁状态: {entity}")
 
