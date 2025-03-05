@@ -2,9 +2,9 @@
 from aiohttp import ClientSession
 from homeassistant.core import HomeAssistant
 from .const import LOGGER_NAME
-from .userinfo import get_ggid, get_ddevices, get_llock_userinfo, get_llock_info, get_llock_video
-from .entity import KiwiLockDevice, KiwiLockInfo, KiwiLockEvent, KiwiLockUser, KiwiLockCamera, KiwiLockStatus
-from .utils import get_latest_event, get_history_events, get_latest_event_with_data
+from .conn.userinfo import get_ggid, get_ddevices, get_llock_userinfo, get_llock_info, get_llock_video
+from .entity.lock import KiwiLockDevice, KiwiLockInfo, KiwiLockEvent, KiwiLockUser, KiwiLockCamera, KiwiLockStatus
+from .conn.utils import get_latest_event, get_history_events, get_latest_event_with_data
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 

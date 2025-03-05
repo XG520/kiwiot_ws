@@ -6,8 +6,8 @@ import random
 import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from .entity import KiwiLockEvent, KiwiLockCamera, KiwiLockStatus
-from .const import LOGGER_NAME, WS_URL, DOMAIN
+from ..entity.lock import KiwiLockEvent, KiwiLockCamera, KiwiLockStatus
+from ..const import LOGGER_NAME, WS_URL, DOMAIN
 from .utils import convert_wsevent_format, convert_media_event_format
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .userinfo import get_llock_userinfo
