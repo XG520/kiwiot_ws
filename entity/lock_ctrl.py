@@ -6,7 +6,7 @@ from homeassistant.const import EntityCategory
 from ..const import DOMAIN, LOGGER_NAME
 from ..conn.userinfo import create_mfa_token
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -60,6 +60,13 @@ class KiwiLockPasswordConfirm(ButtonEntity):
         self._attr_should_poll = False
         self._last_press_time = None
         self._cooldown_period = 60  
+        self._update_timer = None
+    
+    async def _schedule_update(self):
+        """安排一个状态更新"""
+        await asyncio.sleep(self._cooldown_period)
+        self._last_press_time = None
+        self.async_write_ha_state()
 
     @property
     def icon(self):
@@ -112,6 +119,11 @@ class KiwiLockPasswordConfirm(ButtonEntity):
                 self._password_entity._attr_native_value = ""
                 self._password_entity.async_write_ha_state()
                 self.async_write_ha_state()  
+                
+                # 创建自动更新任务
+                if self._update_timer:
+                    self._update_timer.cancel()
+                self._update_timer = asyncio.create_task(self._schedule_update())
                 return
 
         except Exception as e:
@@ -136,6 +148,11 @@ class KiwiLockPasswordConfirm(ButtonEntity):
                         self._password_entity._attr_native_value = ""
                         self._password_entity.async_write_ha_state()
                         self.async_write_ha_state() 
+                        
+                        # 创建自动更新任务
+                        if self._update_timer:
+                            self._update_timer.cancel()
+                        self._update_timer = asyncio.create_task(self._schedule_update())
                         return
 
                 except Exception as token_error:
