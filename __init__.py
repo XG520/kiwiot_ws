@@ -12,7 +12,7 @@ from .device_manager import initialize_devices_and_groups
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
-PLATFORMS = [Platform.SENSOR, Platform.CAMERA, Platform.TEXT]
+PLATFORMS = [Platform.SENSOR, Platform.CAMERA, Platform.TEXT, Platform.BUTTON]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})

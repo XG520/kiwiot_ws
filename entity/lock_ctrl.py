@@ -1,6 +1,7 @@
 import logging
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.text import TextEntity
+from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from ..const import DOMAIN, LOGGER_NAME
 from ..conn.userinfo import create_mfa_token
@@ -26,20 +27,51 @@ class KiwiLockPasswordInput(TextEntity):
 
     @property
     def icon(self):
-        """返回实体图标."""
         return "mdi:form-textbox-password"
 
     @property
     def device_info(self):
-        """返回设备信息."""
         return {
             "identifiers": {(DOMAIN, self._device_id)},
         }
 
     async def async_set_value(self, value: str) -> None:
-        """处理密码输入并发送验证请求."""
+        """仅保存密码值"""
         if not value or value.strip() == "":
             raise ValueError("密码不能为空")
+        self._attr_native_value = value
+        self.async_write_ha_state()
+
+class KiwiLockPasswordConfirm(ButtonEntity):
+    """确认按钮实体"""
+    def __init__(self, hass, lock_device, uid, device_id, password_entity):
+        self.hass = hass
+        self._lock_device = lock_device
+        self._device_id = device_id
+        self._uid = uid
+        self._password_entity = password_entity
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{DOMAIN}_{device_id}_password_confirm"
+        self._attr_name = "确认开锁"
+        self._attr_entity_category = None
+        self._attr_translation_key = "password_confirm"
+        self._attr_should_poll = False
+
+    @property
+    def icon(self):
+        return "mdi:lock-open-check"
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self._device_id)},
+        }
+
+    async def async_press(self) -> None:
+        """按钮按下时处理验证请求"""
+        password = self._password_entity._attr_native_value
+        if not password:
+            raise ValueError("请先输入密码")
 
         domain_data = self.hass.data.get(DOMAIN, {})
         token_manager = domain_data.get("token_manager")
@@ -54,13 +86,13 @@ class KiwiLockPasswordInput(TextEntity):
                 self.hass,
                 access_token,
                 self._uid,
-                value,
+                password,
                 session
             )
             
             if success:
-                self._attr_native_value = ""  
-                self.async_write_ha_state()
+                self._password_entity._attr_native_value = ""
+                self._password_entity.async_write_ha_state()
                 return
 
         except Exception as e:
@@ -76,13 +108,13 @@ class KiwiLockPasswordInput(TextEntity):
                         self.hass,
                         new_token,
                         self._uid,
-                        value,
+                        password,
                         session
                     )
                     
                     if success:
-                        self._attr_native_value = ""
-                        self.async_write_ha_state()
+                        self._password_entity._attr_native_value = ""
+                        self._password_entity.async_write_ha_state()
                         return
 
                 except Exception as token_error:

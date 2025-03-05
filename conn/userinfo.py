@@ -88,7 +88,7 @@ async def create_mfa_token(hass, token, uid, number, session):
         return False
 
     url = f"{BASE_URL}/restapi/users/{uid}/mfa/tokens"
-    _LOGGER.info(f"开锁: {number}, URL: {url}")
+    #_LOGGER.info(f"开锁: {number}, URL: {url}")
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}",

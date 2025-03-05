@@ -18,7 +18,7 @@ from .entity.lock import (
     KiwiLockCamera, 
     KiwiLockStatus
     )
-from .entity.lock_ctrl import KiwiLockPasswordInput
+from .entity.lock_ctrl import KiwiLockPasswordInput, KiwiLockPasswordConfirm
 from .conn.utils import (
     get_latest_event, 
     get_history_events, 
@@ -63,11 +63,14 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                         
                     _LOGGER.info(f"图像事件: {video_info}")
 
+                    password_input = KiwiLockPasswordInput(hass, lock_device, master_uid, device_info["did"])
+                    password_confirm = KiwiLockPasswordConfirm(hass, lock_device, master_uid, device_info["did"], password_input)
                     device_entities = [
                         KiwiLockStatus(hass, lock_device, latest_event, history_events),  
                         KiwiLockEvent(hass, lock_device, latest_event, history_events, users),  
-                        KiwiLockInfo(hass, lock_device, group), 
-                        KiwiLockPasswordInput(hass, lock_device, master_uid, device_info["did"]),
+                        KiwiLockInfo(hass, lock_device, group),
+                        password_input, 
+                        password_confirm,
                         KiwiLockCamera(hass, lock_device, latest_data_event, video_info) 
                     ]
 

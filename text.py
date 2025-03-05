@@ -14,7 +14,6 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up text entities."""
     entities = hass.data[DOMAIN][entry.entry_id].get("entities", [])
     text_entities = [
         entity for entity in entities 
