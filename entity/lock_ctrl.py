@@ -5,6 +5,8 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from ..const import DOMAIN, LOGGER_NAME
 from ..conn.userinfo import create_mfa_token
+import asyncio
+from datetime import datetime
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -56,6 +58,8 @@ class KiwiLockPasswordConfirm(ButtonEntity):
         self._attr_entity_category = None
         self._attr_translation_key = "password_confirm"
         self._attr_should_poll = False
+        self._last_press_time = None
+        self._cooldown_period = 60  
 
     @property
     def icon(self):
@@ -67,8 +71,21 @@ class KiwiLockPasswordConfirm(ButtonEntity):
             "identifiers": {(DOMAIN, self._device_id)},
         }
 
+    @property
+    def available(self) -> bool:
+        """检查按钮是否可用(是否在冷却期)."""
+        if self._last_press_time is None:
+            return True
+            
+        elapsed = (datetime.now() - self._last_press_time).total_seconds()
+        return elapsed >= self._cooldown_period
+
     async def async_press(self) -> None:
         """按钮按下时处理验证请求"""
+        if not self.available:
+            remaining = self._cooldown_period - (datetime.now() - self._last_press_time).total_seconds()
+            raise ValueError(f"请等待 {int(remaining)} 秒后再试")
+
         password = self._password_entity._attr_native_value
         if not password:
             raise ValueError("请先输入密码")
@@ -91,8 +108,10 @@ class KiwiLockPasswordConfirm(ButtonEntity):
             )
             
             if success:
+                self._last_press_time = datetime.now()  
                 self._password_entity._attr_native_value = ""
                 self._password_entity.async_write_ha_state()
+                self.async_write_ha_state()  
                 return
 
         except Exception as e:
@@ -113,8 +132,10 @@ class KiwiLockPasswordConfirm(ButtonEntity):
                     )
                     
                     if success:
+                        self._last_press_time = datetime.now()  
                         self._password_entity._attr_native_value = ""
                         self._password_entity.async_write_ha_state()
+                        self.async_write_ha_state() 
                         return
 
                 except Exception as token_error:
