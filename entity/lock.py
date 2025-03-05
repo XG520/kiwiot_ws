@@ -9,7 +9,7 @@ from PIL import ImageFile
 from homeassistant.components.camera import Camera
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.const import EntityCategory
-from ..conn.userinfo import update_lock_user_alias, get_llock_userinfo
+from ..conn.userinfo import update_lock_user_alias
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.components.text import TextEntity
 
