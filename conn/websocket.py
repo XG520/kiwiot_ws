@@ -122,7 +122,7 @@ async def handle_websocket_messages(ws, hass):
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 data = json.loads(msg.data)
-                _LOGGER.info(f"接收到消息: {data}")
+                #_LOGGER.info(f"接收到消息: {data}")
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):
                     

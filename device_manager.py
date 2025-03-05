@@ -2,9 +2,28 @@
 from aiohttp import ClientSession
 from homeassistant.core import HomeAssistant
 from .const import LOGGER_NAME
-from .conn.userinfo import get_ggid, get_ddevices, get_llock_userinfo, get_llock_info, get_llock_video
-from .entity.lock import KiwiLockDevice, KiwiLockInfo, KiwiLockEvent, KiwiLockUser, KiwiLockCamera, KiwiLockStatus
-from .conn.utils import get_latest_event, get_history_events, get_latest_event_with_data
+from .conn.userinfo import (
+    get_ggid, 
+    get_ddevices, 
+    get_llock_userinfo, 
+    get_llock_info, 
+    get_llock_video, 
+    get_user_info
+    )
+from .entity.lock import (
+    KiwiLockDevice, 
+    KiwiLockInfo, 
+    KiwiLockEvent, 
+    KiwiLockUser, 
+    KiwiLockCamera, 
+    KiwiLockStatus
+    )
+from .entity.lock_ctrl import KiwiLockPasswordInput
+from .conn.utils import (
+    get_latest_event, 
+    get_history_events, 
+    get_latest_event_with_data
+    )
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -30,7 +49,9 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     _LOGGER.info(f"设备信息: {lock_device.device_info}")  
 
                     users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
-                    #_LOGGER.info(f"用户数据结构示例: {users}")
+                    master = await get_user_info(hass, access_token, session)
+                    master_uid = master.get("uid", "unknown")
+                    #_LOGGER.info(f"主人数据结构示例: {master}")
                     events = await get_llock_info(hass, access_token, device_info["did"], session)
                     latest_event = await get_latest_event(events)
                     latest_data_event = await get_latest_event_with_data(events)
@@ -45,7 +66,8 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     device_entities = [
                         KiwiLockStatus(hass, lock_device, latest_event, history_events),  
                         KiwiLockEvent(hass, lock_device, latest_event, history_events, users),  
-                        KiwiLockInfo(hass, lock_device, group),  
+                        KiwiLockInfo(hass, lock_device, group), 
+                        KiwiLockPasswordInput(hass, lock_device, master_uid, device_info["did"]),
                         KiwiLockCamera(hass, lock_device, latest_data_event, video_info) 
                     ]
 

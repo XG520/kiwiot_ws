@@ -36,7 +36,6 @@ class KiwiLockDevice:
             name=f"{self.group_name} - {self.name}",
             manufacturer="KiwiOT",
             model="Smart Lock",
-            # via_device=(DOMAIN, f"group_{self.group_id}"),
             sw_version=self.device_info.get("version", "unknown")
         )
 
@@ -254,13 +253,6 @@ class KiwiLockEvent(Entity):
 class KiwiLockUser(TextEntity, RestoreEntity):
     """锁用户实体"""
     def __init__(self, hass, lock_device, user_info, device_id, unique_id):
-        """初始化锁用户实体
-        
-        Args:
-            hass: HomeAssistant 实例
-            lock_device: KiwiLockDevice 实例
-            user_info: 用户信息字典
-        """
         self.hass = hass
         self._lock_device = lock_device
         self._user_info = user_info
