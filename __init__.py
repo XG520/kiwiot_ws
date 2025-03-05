@@ -6,8 +6,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
-from .conn.websocket import start_websocket_connection
-from .conn.token_manager import get_access_token
+from .websocket import start_websocket_connection
+from .token_manager import get_access_token
 from .device_manager import initialize_devices_and_groups
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
@@ -24,7 +24,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ignore_ssl = entry.data.get(CONF_IGNORE_SSL, False)
     
     # 创建TokenManager实例
-    from .conn.token_manager import TokenManager
+    from .token_manager import TokenManager
     token_manager = TokenManager(hass, identifier, credential, client_id)
     
     # 创建session

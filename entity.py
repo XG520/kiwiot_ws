@@ -2,14 +2,14 @@
 from pathlib import Path
 
 from homeassistant.helpers.entity import Entity, DeviceInfo
-from ..const import DOMAIN, LOGGER_NAME
+from .const import DOMAIN, LOGGER_NAME
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from PIL import ImageFile
 from homeassistant.components.camera import Camera
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.const import EntityCategory
-from ..conn.userinfo import update_lock_user_alias
+from .userinfo import update_lock_user_alias, get_llock_userinfo
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.components.text import TextEntity
 
@@ -100,6 +100,7 @@ class KiwiLockStatus(Entity):
             event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
             event_time_local = event_time_utc.astimezone(ZoneInfo("Asia/Shanghai"))
             self._event_time = event_time_local.strftime("%Y-%m-%d %H:%M:%S")
+            self._notify_time = event_time_local.strftime("%H:%M:%S")
         except Exception as e:
             _LOGGER.error(f"处理事件时间失败: {e}")
             self._event_time = str(datetime.now())
@@ -122,7 +123,7 @@ class KiwiLockStatus(Entity):
     @property
     def state(self):
         name = self._event.get("name", "unknown")   
-        return self.STATE_MAP.get(name, name)
+        return self._notify_time + self.STATE_MAP.get(name, name)
 
     @property
     def extra_state_attributes(self):
@@ -183,6 +184,7 @@ class KiwiLockEvent(Entity):
             event_time_utc = datetime.fromisoformat(event["created_at"].replace('Z', '+00:00'))
             event_time_local = event_time_utc.astimezone(ZoneInfo("Asia/Shanghai"))
             self._event_time = event_time_local.strftime("%Y-%m-%d %H:%M:%S")
+            self._notify_time = event_time_local.strftime("%H:%M:%S")
         except Exception as e:
             _LOGGER.error(f"处理事件时间失败: {e}")
             self._event_time = str(datetime.now())
@@ -226,11 +228,11 @@ class KiwiLockEvent(Entity):
                 _LOGGER.warning(f"处理用户ID时出错: {e}")
         if name == "UNLOCKED" :
             the_type = self.USER_TYPE_MAP.get(event_type, event_type)
-            return f"{alias}{the_type}解锁"
+            return f"{self._notify_time}{alias}{the_type}解锁"
         elif name == "REMOTE_UNLOCK" and self._event.get("level", "unknown") == "CRITICAL":
-            return f"门铃"
+            return f"{self._notify_time}门铃"
         else:    
-            return self.STATE_MAP.get(name, name)
+            return self._notify_time + self.STATE_MAP.get(name, name)
 
     @property
     def extra_state_attributes(self):
@@ -301,6 +303,10 @@ class KiwiLockUser(TextEntity, RestoreEntity):
             "identifiers": {(DOMAIN, self._device_id)},
         }
 
+    @property
+    def state(self):
+        return self._user_info.get("alias", "unknown")
+    
     @property
     def extra_state_attributes(self):
         """额外属性"""
@@ -408,7 +414,7 @@ class KiwiLockCamera(Camera):
         self._state = STATE_UNKNOWN
         
         cache_dir = Path(hass.config.path("custom_components", DOMAIN, "cache"))
-        from ..utils import ImageCache
+        from .utils import ImageCache
         self._image_cache = ImageCache(hass, cache_dir)
 
     async def async_camera_image(self, width=320, height=480):

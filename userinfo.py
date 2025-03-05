@@ -1,6 +1,6 @@
 ﻿import aiohttp
 import logging
-from ..const import BASE_URL, LOGGER_NAME
+from .const import BASE_URL, LOGGER_NAME
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
