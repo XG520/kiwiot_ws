@@ -122,13 +122,14 @@ class KiwiLockStatus(Entity):
     @property
     def state(self):
         name = self._event.get("name", "unknown")   
-        return self._notify_time + self.STATE_MAP.get(name, name)
+        return self._notify_time +" " + self.STATE_MAP.get(name, name)
 
     @property
     def extra_state_attributes(self):
         """返回额外的状态属性"""
         if self._event.get("name") == "LOCK_INDOOR_BUTTON_UNLOCK":
             attributes = {
+                "状态": self._event.get("name", "unknown"),
                 "更新时间": self._event_time,
                 "设备ID": self._device.device_id,
                 "用户ID": "unknown",
@@ -139,6 +140,7 @@ class KiwiLockStatus(Entity):
             return attributes
         else:
             return {
+                "状态": self._event.get("name", "unknown"),
                 "更新时间": self._event_time,
                 "设备ID": self._device.device_id,
                 "用户ID": self._event.get("data", {}).get("lock_user", {}).get("id", "unknown"),
@@ -227,17 +229,17 @@ class KiwiLockEvent(Entity):
                 _LOGGER.warning(f"处理用户ID时出错: {e}")
         if name == "UNLOCKED" :
             the_type = self.USER_TYPE_MAP.get(event_type, event_type)
-            return f"{self._notify_time}{alias}{the_type}解锁"
+            return f"{self._notify_time} {alias}{the_type}解锁"
         elif name == "REMOTE_UNLOCK" and self._event.get("level", "unknown") == "CRITICAL":
-            return f"{self._notify_time}门铃"
+            return f"{self._notify_time} 门铃"
         else:    
-            return self._notify_time + self.STATE_MAP.get(name, name)
+            return self._notify_time + " " + self.STATE_MAP.get(name, name)
 
     @property
     def extra_state_attributes(self):
         """返回额外的状态属性"""
 
-        attributes = {
+        attributes = { 
             "更新时间": self._event_time,
             "设备ID": self._device.device_id,
             "类型": self._event.get("level", "unknown"),
