@@ -127,9 +127,10 @@ class KiwiLockStatus(Entity):
     @property
     def extra_state_attributes(self):
         """返回额外的状态属性"""
+        name = self._event.get("name", "unknown")
         if self._event.get("name") == "LOCK_INDOOR_BUTTON_UNLOCK":
             attributes = {
-                "状态": self._event.get("name", "unknown"),
+                "状态": self.STATE_MAP.get(name, name),
                 "更新时间": self._event_time,
                 "设备ID": self._device.device_id,
                 "用户ID": "unknown",
@@ -140,7 +141,7 @@ class KiwiLockStatus(Entity):
             return attributes
         else:
             return {
-                "状态": self._event.get("name", "unknown"),
+                "状态": self.STATE_MAP.get(name, name),
                 "更新时间": self._event_time,
                 "设备ID": self._device.device_id,
                 "用户ID": self._event.get("data", {}).get("lock_user", {}).get("id", "unknown"),
