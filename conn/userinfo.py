@@ -36,7 +36,6 @@ async def get_device_info(hass, token, did, session):
 
 async def get_llock_userinfo(hass, token, did, session):
     url = f"{BASE_URL}/api/locks/{did}/users?access_token={token}"
-    _LOGGER.info(f"userinfolock获取锁用户信息: {did}, URL: {url}")
     return await _make_request(hass, session, url, "获取锁用户信息")
 
 async def get_llock_info(hass, token, did, session):

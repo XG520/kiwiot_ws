@@ -135,6 +135,7 @@ class KiwiLockPasswordConfirm(ButtonEntity):
                         raise ValueError("刷新token失败")
                     
                     domain_data["access_token"] = new_token
+                    self.hass.data[DOMAIN]["access_token"] = new_token
                     success = await create_mfa_token(
                         self.hass,
                         new_token,

@@ -122,7 +122,7 @@ async def handle_websocket_messages(ws, hass):
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 data = json.loads(msg.data)
-                #_LOGGER.info(f"接收到消息: {data}")
+                _LOGGER.info(f"接收到消息: {data}")
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):
                     
@@ -172,6 +172,7 @@ async def update_device_state(hass, device_id, event_data):
                     new_token = await token_manager.get_token(session)
                     if new_token:
                         domain_data["access_token"] = new_token
+                        hass.data[DOMAIN]["access_token"] = new_token
                         users = await get_llock_userinfo(hass, new_token, device_id, session)
                     else:
                         _LOGGER.error("刷新token失败")

@@ -348,6 +348,7 @@ class KiwiLockUser(TextEntity, RestoreEntity):
                         raise ValueError("刷新token失败")
                         
                     domain_data["access_token"] = new_token
+                    self.hass.data[DOMAIN]["access_token"] = new_token
                     success = await update_lock_user_alias(
                         self.hass,
                         new_token,
