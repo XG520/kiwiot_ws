@@ -11,6 +11,12 @@ DEVICE_TYPES = {
     "LOCK": "Smart Lock",
 }
 
+ENTITY_TYPES = {
+    "STATUS": "Status",
+    "BATTERY": "Battery",
+    "USER": "User",
+}
+
 # API 地址
 BASE_URL = "https://h5.kiwik.cn"
 AUTH_URL = "https://h5.kiwik.cn/restapi/auth/tokens"

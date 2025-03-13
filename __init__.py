@@ -12,10 +12,9 @@ from .device_manager import initialize_devices_and_groups
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
-PLATFORMS = [Platform.SENSOR, Platform.CAMERA, Platform.TEXT]
+PLATFORMS = [Platform.SENSOR, Platform.CAMERA, Platform.TEXT, Platform.BUTTON]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up KiwiOT integration from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
     identifier = entry.data.get(CONF_IDENTIFIER)
@@ -95,11 +94,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error(f"获取 token 时发生错误: {e}")
         return False
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Unload KiwiOT integration."""
-    session = hass.data[DOMAIN].get("session")
-    if session:
-        await session.close()
-    hass.data.pop(DOMAIN, None)
-    _LOGGER.info("KiwiOT 集成已卸载")
-    return True
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # 首先卸载所有平台
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    
+    if unload_ok:
+        # 关闭 session
+        session = hass.data[DOMAIN].get("session")
+        if session:
+            await session.close()
+        
+        # 清理该条目的数据
+        if entry.entry_id in hass.data[DOMAIN]:
+            hass.data[DOMAIN].pop(entry.entry_id)
+        
+        # 如果没有其他条目使用这个域，则完全删除域数据
+        if not hass.data[DOMAIN]:
+            hass.data.pop(DOMAIN)
+            
+        _LOGGER.info("KiwiOT 集成已成功卸载")
+    
+    return unload_ok

@@ -221,7 +221,7 @@ class KiwiLockEvent(Entity):
         lock_user = data.get("lock_user", {})
         event_type = lock_user.get("type", "unknown")
         user_id = lock_user.get("id", "unknown")
-        #判断是否存在用户别名
+
         alias = user_id
         if self._users and isinstance(self._users, list):
             try:
