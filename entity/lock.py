@@ -122,12 +122,20 @@ class KiwiLockStatus(Entity):
     @property
     def state(self):
         name = self._event.get("name", "unknown")   
-        return self._notify_time +" " + self.STATE_MAP.get(name, name)
+        return self._notify_time + " " + self.STATE_MAP.get(name, name)
 
     @property
     def extra_state_attributes(self):
         """返回额外的状态属性"""
         name = self._event.get("name", "unknown")
+        raw_data = self._event.get("data", {}) or {}
+        lock_user = raw_data.get("lock_user", {}) or {}
+        raw_id = lock_user.get("id", 0)
+        
+        try:
+            user_id = int(float(raw_id)) if isinstance(raw_id, str) else int(raw_id)
+        except (ValueError, TypeError):
+            user_id = 0  
         if self._event.get("name") == "LOCK_INDOOR_BUTTON_UNLOCK":
             attributes = {
                 "状态": self.STATE_MAP.get(name, name),
@@ -144,7 +152,7 @@ class KiwiLockStatus(Entity):
                 "状态": self.STATE_MAP.get(name, name),
                 "更新时间": self._event_time,
                 "设备ID": self._device.device_id,
-                "用户ID": self._event.get("data", {}).get("lock_user", {}).get("id", "unknown"),
+                "用户ID": user_id,
                 "开关锁方式": self.USER_TYPE_MAP.get(self._event.get("data", {}).get("lock_user", {}).get("type", "unknown"), "unknown"),
                 "图像地址": self._event.get("data", {}).get("image", {}).get("uri", "unknown"),                
                 "类型": self._event.get("level", "unknown"),
