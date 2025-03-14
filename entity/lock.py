@@ -5,6 +5,7 @@ from homeassistant.helpers.entity import Entity, DeviceInfo
 from ..const import DOMAIN, LOGGER_NAME
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from ..conn.utils import ImageCache
 from PIL import ImageFile
 from homeassistant.components.camera import Camera
 from homeassistant.const import STATE_UNKNOWN
@@ -130,12 +131,12 @@ class KiwiLockStatus(Entity):
         name = self._event.get("name", "unknown")
         raw_data = self._event.get("data", {}) or {}
         lock_user = raw_data.get("lock_user", {}) or {}
-        raw_id = lock_user.get("id", 0)
+        raw_id = lock_user.get("id", 0000)
         
         try:
             user_id = int(float(raw_id)) if isinstance(raw_id, str) else int(raw_id)
         except (ValueError, TypeError):
-            user_id = 0  
+            user_id = 0000  
         if self._event.get("name") == "LOCK_INDOOR_BUTTON_UNLOCK":
             attributes = {
                 "状态": self.STATE_MAP.get(name, name),
@@ -418,7 +419,6 @@ class KiwiLockCamera(Camera):
         self._state = STATE_UNKNOWN
         
         cache_dir = Path(hass.config.path("custom_components", DOMAIN, "cache"))
-        from ..conn.utils import ImageCache
         self._image_cache = ImageCache(hass, cache_dir)
 
     async def async_camera_image(self, width=320, height=480):
@@ -445,7 +445,7 @@ class KiwiLockCamera(Camera):
 
     async def update_from_event(self, event_data):
         """从新事件更新相机数据."""
-        _LOGGER.debug(f"更新相机事件数据: {event_data.get('name')}")
+        _LOGGER.info(f"更新相机事件数据: {event_data.get('name')}")
         self._event_data = event_data
         await self._image_cache.clear_cache()
 
