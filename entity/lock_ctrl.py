@@ -106,15 +106,16 @@ class KiwiLockPasswordConfirm(ButtonEntity):
             raise ValueError("无法获取必要组件")
 
         try:
-            success = await create_mfa_token(
+            response = await create_mfa_token(
                 self.hass,
                 access_token,
                 self._uid,
                 password,
                 session
             )
+            _LOGGER.info(f"验证结果: {response}")
             
-            if success:
+            if response.get("success"):
                 self._last_press_time = datetime.now()  
                 self._password_entity._attr_native_value = ""
                 self._password_entity.async_write_ha_state()
@@ -136,7 +137,7 @@ class KiwiLockPasswordConfirm(ButtonEntity):
                     
                     domain_data["access_token"] = new_token
                     self.hass.data[DOMAIN]["access_token"] = new_token
-                    success = await create_mfa_token(
+                    response = await create_mfa_token(
                         self.hass,
                         new_token,
                         self._uid,
@@ -144,7 +145,7 @@ class KiwiLockPasswordConfirm(ButtonEntity):
                         session
                     )
                     
-                    if success:
+                    if response.get("success"):
                         self._last_press_time = datetime.now()  
                         self._password_entity._attr_native_value = ""
                         self._password_entity.async_write_ha_state()

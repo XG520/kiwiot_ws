@@ -1,9 +1,8 @@
 ﻿import aiohttp
 import logging
-from ..const import BASE_URL, LOGGER_NAME
+from ..const import BASE_URL, LOGGER_NAME, DOMAIN
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
-
 async def _make_request(hass, session, url, error_prefix="获取信息"):
     try:
         async with session.get(url) as response:
@@ -82,16 +81,20 @@ async def update_lock_user_alias(hass, token, did, user_type, user_id, new_alias
     
 async def create_mfa_token(hass, token, uid, number, session):
     """开锁"""
+    
+    domain_data = hass.data.get(DOMAIN, {})
+    client_id = domain_data.get("client_id")
+    _LOGGER.info(f"创建MFA Token: {domain_data}")
+
     if len(number) > 6:
         _LOGGER.error("密码长度不能超过6个字符")
         return False
 
     url = f"{BASE_URL}/restapi/users/{uid}/mfa/tokens"
-    #_LOGGER.info(f"开锁: {number}, URL: {url}")
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}",
-        "x-kiwik-client-id": "igxknDUbISY3XAcBYJT9SIegd31sPu7B"
+        "x-kiwik-client-id": f"{client_id}"
     }
 
     payload = {

@@ -40,6 +40,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             
         # 存储token_manager和session
         hass.data[DOMAIN].update({
+            "client_id": client_id,
             "token_manager": token_manager,
             "session": session,
             "access_token": access_token

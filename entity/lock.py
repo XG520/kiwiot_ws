@@ -474,7 +474,7 @@ class KiwiLockCamera(Camera):
         user_type = lock_user.get("type", "")
         displayed_type = self.USER_TYPE_MAP.get(user_type, user_type)
         
-        return {
+        return  {
             "level": self._event_data.get("level"),
             "created_at": self._event_data.get("created_at"),
             "用户ID": lock_user.get("id"),
