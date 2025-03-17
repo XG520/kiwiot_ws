@@ -6,6 +6,7 @@ import random
 import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from typing import Optional
 from ..entity.lock import KiwiLockEvent, KiwiLockCamera, KiwiLockStatus
 from ..const import LOGGER_NAME, WS_URL, DOMAIN
 from .utils import convert_wsevent_format, convert_media_event_format
@@ -15,7 +16,7 @@ from .userinfo import get_llock_userinfo
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
 
-def generate_uuid():
+async def generate_uuid():
     """生成符合特定格式的 UUID 字符串。"""
     def replace_x_or_y(match):
         char = match.group(0)
@@ -45,6 +46,7 @@ async def start_websocket_connection(hass, access_token, session):
                 return
                 
             async with session.ws_connect(ws_url) as ws:
+                hass.data[DOMAIN].update({"websocket": ws})
                 _LOGGER.info(f"WebSocket 连接已建立 (重试次数: {retry_count})")
                 
                 tasks = [
@@ -71,6 +73,7 @@ async def start_websocket_connection(hass, access_token, session):
                             raise task.exception()
                             
                 except asyncio.CancelledError:
+                    hass.data[DOMAIN].pop("websocket", None)
                     _LOGGER.info("WebSocket任务被取消")
                     return
                     
@@ -83,6 +86,7 @@ async def start_websocket_connection(hass, access_token, session):
             
         if retry_count < max_retries:
             if DOMAIN not in hass.data or session.closed:
+                hass.data[DOMAIN].pop("websocket", None)
                 _LOGGER.warning("集成已被移除或session已关闭,停止重试")
                 return
             wait_time = retry_delay * (2 ** retry_count)
@@ -93,6 +97,7 @@ async def start_websocket_connection(hass, access_token, session):
 
 async def send_heartbeat(ws):
     """发送心跳消息。"""
+    uuid = await generate_uuid()
     interval = 30
     try:
         while True:
@@ -104,7 +109,7 @@ async def send_heartbeat(ws):
                 "header": {
                     "namespace": "Iot.Application",
                     "name": "Ping",
-                    "messageId": generate_uuid(),
+                    "messageId": uuid,
                     "payloadVersion": 1
                 }
             }
@@ -115,6 +120,39 @@ async def send_heartbeat(ws):
         _LOGGER.error(f"心跳消息发送失败: {e}")
         raise
 
+async def send_unlock_command(hass, access_token, unlock_data, device_id) -> bool:
+    """发送开锁指令"""
+    uuid = await generate_uuid()
+    ws: Optional[aiohttp.ClientWebSocketResponse] = hass.data[DOMAIN].get("websocket")
+    if not ws or ws.closed:
+        _LOGGER.error("WebSocket连接不可用")
+        return False
+
+    msg = {
+            "header": {
+                "namespace": "Iot.Device",
+                "name": "Ctrl",
+                "messageId": uuid,
+                "payloadVersion": 1,
+                "secureToken": access_token
+            },
+            "payload": {
+                "did": device_id,
+                "verify": True,
+                "data": unlock_data
+            }
+    }
+    _LOGGER.info(f"开锁指令: {msg}")
+    try:
+        await ws.send_json(msg)
+        _LOGGER.debug("开锁指令已成功发送")
+        return True 
+
+    except (aiohttp.ClientConnectionError,
+           aiohttp.ClientPayloadError,
+           asyncio.CancelledError) as e:
+        _LOGGER.error(f"指令发送失败: {str(e)}")
+        return False
 
 async def handle_websocket_messages(ws, hass):
     """处理 WebSocket 消息并更新实体状态"""

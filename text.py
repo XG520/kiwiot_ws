@@ -7,7 +7,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .entity.lock import KiwiLockUser
-from .entity.lock_ctrl import KiwiLockPasswordInput
+from .entity.lock_ctrl import KiwiLockPasswordInput, KiwiLockUnlockDataInput
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -17,7 +17,7 @@ async def async_setup_entry(
     entities = hass.data[DOMAIN][entry.entry_id].get("entities", [])
     text_entities = [
         entity for entity in entities 
-        if isinstance(entity, (KiwiLockUser, KiwiLockPasswordInput))
+        if isinstance(entity, (KiwiLockUser, KiwiLockPasswordInput, KiwiLockUnlockDataInput))
     ]
     
     if text_entities:

@@ -7,6 +7,7 @@ from ..const import DOMAIN, LOGGER_NAME
 from ..conn.userinfo import create_mfa_token
 import asyncio
 from datetime import datetime, timedelta
+from ..conn.websocket import send_unlock_command
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -44,14 +45,48 @@ class KiwiLockPasswordInput(TextEntity):
         self._attr_native_value = value
         self.async_write_ha_state()
 
+class KiwiLockUnlockDataInput(TextEntity):
+    """密码输入实体，用于远程开锁验证"""
+    def __init__(self, hass, lock_device, uid, device_id):
+        self.hass = hass
+        self._lock_device = lock_device
+        self._device_id = device_id
+        self._uid = uid
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{DOMAIN}_{device_id}_unlock_data_input"
+        self._attr_name = "远程开锁数据"
+        self._attr_native_value = ""
+        self._attr_mode = "password"  
+        self._attr_native_max = 32
+        self._attr_entity_category = None
+        self._attr_translation_key = "password_input"
+        self._attr_should_poll = False
+
+    @property
+    def icon(self):
+        return "mdi:form-textbox-password"
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self._device_id)},
+        }
+
+    async def async_set_value(self, value: str) -> None:
+        if not value or value.strip() == "":
+            raise ValueError("DATA不能为空")
+        self._attr_native_value = value
+        self.async_write_ha_state()
+
 class KiwiLockPasswordConfirm(ButtonEntity):
     """确认按钮实体"""
-    def __init__(self, hass, lock_device, uid, device_id, password_entity):
+    def __init__(self, hass, lock_device, uid, device_id, password_entity, unlock_data_entity):
         self.hass = hass
         self._lock_device = lock_device
         self._device_id = device_id
         self._uid = uid
         self._password_entity = password_entity
+        self._unlock_data_entity = unlock_data_entity
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{DOMAIN}_{device_id}_password_confirm"
         self._attr_name = "确认开锁"
@@ -96,6 +131,9 @@ class KiwiLockPasswordConfirm(ButtonEntity):
         password = self._password_entity._attr_native_value
         if not password:
             raise ValueError("请先输入密码")
+        unlock_data = self._unlock_data_entity._attr_native_value
+        if not unlock_data:
+            raise ValueError("请先输入DATA")
 
         domain_data = self.hass.data.get(DOMAIN, {})
         token_manager = domain_data.get("token_manager")
@@ -120,7 +158,10 @@ class KiwiLockPasswordConfirm(ButtonEntity):
                 self._password_entity._attr_native_value = ""
                 self._password_entity.async_write_ha_state()
                 self.async_write_ha_state()  
-                
+                #开锁ws
+                send_token = response.get("data", {}).get("access_token", '')
+                _LOGGER.info(f"发送开锁ws: {send_token},unlock_data: {unlock_data},device_id: {self._device_id}")
+                await send_unlock_command(self.hass, send_token, unlock_data, self._device_id)
                 # 创建自动更新任务
                 if self._update_timer:
                     self._update_timer.cancel()
