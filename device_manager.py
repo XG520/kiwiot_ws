@@ -1,7 +1,4 @@
 ﻿import logging
-from aiohttp import ClientSession
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
 from .const import LOGGER_NAME
 from .conn.userinfo import (
     get_ggid, 
@@ -29,7 +26,7 @@ from .conn.utils import (
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
 
-async def initialize_devices_and_groups(hass: HomeAssistant, entry, session: ClientSession, callback):
+async def initialize_devices_and_groups(hass, entry, session, callback):
     """初始化设备和组信息."""
     try:
         groups = await get_ggid(hass, entry, session)

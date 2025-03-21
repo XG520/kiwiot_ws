@@ -3,7 +3,6 @@ import logging
 from ..const import BASE_URL, LOGGER_NAME, DOMAIN
 from .token_manager import TokenManager
 
-
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
 async def _make_request(hass, session, url, error_prefix="获取信息"):
@@ -22,50 +21,50 @@ async def _make_request(hass, session, url, error_prefix="获取信息"):
         _LOGGER.error(f"发生意外错误: {e}")
         return None
 
-async def get_ggid(hass, session):
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+async def get_ggid(hass, entry, session):
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     url = f"{BASE_URL}/restapi/groups?access_token={token}"
     return await _make_request(hass, session, url, "获取组信息")
 
-async def get_ddevices(hass, gid, session):
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+async def get_ddevices(hass, entry, gid, session):
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     url = f"{BASE_URL}/restapi/groups/{gid}/devices?access_token={token}"
     return await _make_request(hass, session, url, "获取设备信息")
 
-async def get_user_info(hass, session):
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+async def get_user_info(hass, entry, session):
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     url = f"{BASE_URL}/restapi/user?access_token={token}"
     return await _make_request(hass, session, url, "获取用户信息")
-async def get_device_info(hass, did, session):
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+async def get_device_info(hass, entry, did, session):
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     url = f"{BASE_URL}/api/devices/{did}?access_token={token}"
     return await _make_request(hass, session, url, "获取设备信息")
 
-async def get_llock_userinfo(hass, did, session):
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+async def get_llock_userinfo(hass, entry, did, session):
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     url = f"{BASE_URL}/api/locks/{did}/users?access_token={token}"
     return await _make_request(hass, session, url, "获取锁用户信息")
 
-async def get_llock_info(hass, did, session):
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+async def get_llock_info(hass, entry, did, session):
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     url = f"{BASE_URL}/api/devices/{did}/events?page=1&per_page=15&access_token={token}"
     return await _make_request(hass, session, url, "获取锁信息")
 
-async def get_llock_video(hass, did, session, stream_id):
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+async def get_llock_video(hass, entry, did, session, stream_id):
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     url = f"{BASE_URL}/api/devices/{did}/streams/{stream_id}?page=1&per_page=15&access_token={token}"
     return await _make_request(hass, session, url, "获取锁信息")
 
-async def update_lock_user_alias(hass, did, user_type, user_id, new_alias, session):
+async def update_lock_user_alias(hass, entry, did, user_type, user_id, new_alias, session):
     """更新锁用户别名"""
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     if len(new_alias) > 16:
         _LOGGER.error("用户别名长度不能超过16个字符")
@@ -99,9 +98,9 @@ async def update_lock_user_alias(hass, did, user_type, user_id, new_alias, sessi
         _LOGGER.error(f"发生意外错误: {e}")
         return False
     
-async def create_mfa_token(hass, uid, number, session):
+async def create_mfa_token(hass, entry, uid, number, session):
     """开锁"""
-    token_manager = TokenManager(hass, hass.config_entries.async_get_entry(hass.data[DOMAIN]["entry_id"]))
+    token_manager = TokenManager(hass, entry)
     token = await token_manager.get_token(hass)
     domain_data = hass.data.get(DOMAIN, {})
     client_id = domain_data.get("client_id")
