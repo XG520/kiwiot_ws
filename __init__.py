@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from aiohttp import ClientSession, TCPConnector
+import aiohttp
 from homeassistant.const import Platform
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -15,29 +15,36 @@ _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 PLATFORMS = [Platform.SENSOR, Platform.CAMERA, Platform.TEXT, Platform.BUTTON]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """设置配置项"""
     hass.data.setdefault(DOMAIN, {})
 
     client_id = entry.data.get(CONF_CLIENT_ID)
     ignore_ssl = entry.data.get(CONF_IGNORE_SSL, False)
-    
     token_manager = TokenManager(hass, entry)
     
-    # 创建session
-    connector = None
-    if ignore_ssl:
-        connector = TCPConnector(ssl=False)
-    session = ClientSession(connector=connector)
-    
+    # 创建 session 配置
+    timeout = aiohttp.ClientTimeout(total=30, connect=10)
+    connector = aiohttp.TCPConnector(
+        ssl=not ignore_ssl,
+        enable_cleanup_closed=True
+    )
+    session = aiohttp.ClientSession(
+        connector=connector,
+        timeout=timeout,
+        raise_for_status=False
+    )
+
     try:
-        # 获取初始token
+        # 获取初始 token
         access_token = await token_manager.get_token(session)
         if not access_token:
+            if session and not session.closed:
+                await session.close()
             return False
             
-        # 存储token_manager和session
+        # 存储 session 和其他数据
         hass.data[DOMAIN].update({
             "client_id": client_id,
-            "access_token": access_token,
             "session": session,
         })
 
@@ -57,7 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         entities_by_device[device_id].append(entity)
                 entities_to_add.extend(new_entities)
 
-            await initialize_devices_and_groups(hass, session, add_entities_callback)
+            await initialize_devices_and_groups(hass, entry, session, add_entities_callback)
             if not entities_to_add:
                 return False
 
@@ -74,7 +81,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
             # 启动 WebSocket 连接
-            hass.loop.create_task(start_websocket_connection(hass, session))
+            hass.loop.create_task(start_websocket_connection(hass, entry, session))
 
             _LOGGER.info(f"KiwiOT 集成已成功初始化，添加了 {len(entities_to_add)} 个实体")
             return True
@@ -88,6 +95,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as e:
         _LOGGER.error(f"获取 token 时发生错误: {e}")
         return False
+
+    finally:
+        if connector:
+            connector._cleanup = True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # 首先卸载所有平台
