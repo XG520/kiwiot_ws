@@ -1,6 +1,7 @@
 ﻿import logging
 from aiohttp import ClientSession
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 from .const import LOGGER_NAME
 from .conn.userinfo import (
     get_ggid, 
@@ -28,17 +29,17 @@ from .conn.utils import (
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
 
-async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, session: ClientSession, callback):
+async def initialize_devices_and_groups(hass: HomeAssistant, entry, session: ClientSession, callback):
     """初始化设备和组信息."""
     try:
-        groups = await get_ggid(hass, access_token, session)
+        groups = await get_ggid(hass, entry, session)
         if not groups:
             _LOGGER.error("获取组信息失败")
             return
 
         all_device_entities = []  
         for group in groups:
-            devices = await get_ddevices(hass, access_token, group["gid"], session)
+            devices = await get_ddevices(hass, entry, group["gid"], session)
             if not devices:
                 _LOGGER.warning(f"组 {group['gid']} 内没有设备")
                 continue
@@ -48,24 +49,24 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                     lock_device = KiwiLockDevice(hass, device_info, group["gid"], group["name"])
                     _LOGGER.info(f"设备信息: {lock_device.device_info}")  
 
-                    users = await get_llock_userinfo(hass, access_token, device_info["did"], session)
-                    master = await get_user_info(hass, access_token, session)
+                    users = await get_llock_userinfo(hass, entry, device_info["did"], session)
+                    master = await get_user_info(hass, entry, session)
                     master_uid = master.get("uid", "unknown")
                     #_LOGGER.info(f"主人数据结构示例: {master}")
-                    events = await get_llock_info(hass, access_token, device_info["did"], session)
+                    events = await get_llock_info(hass, entry, device_info["did"], session)
                     latest_event = await get_latest_event(events)
                     latest_data_event = await get_latest_event_with_data(events)
                     history_events = await get_history_events(events)
                     video_info = None
                     if latest_data_event.get("name") == "HUMAN_WANDERING":
                         stream_id = latest_data_event.get("data", {}).get("stream_id")
-                        video_info = await get_llock_video(hass, access_token, device_info["did"], session, stream_id)
+                        video_info = await get_llock_video(hass, entry, device_info["did"], session, stream_id)
                         
                     _LOGGER.info(f"图像事件: {video_info}")
 
                     password_input = KiwiLockPasswordInput(hass, lock_device, master_uid, device_info["did"])
                     unlock_data_input = KiwiLockUnlockDataInput(hass, lock_device, master_uid, device_info["did"])
-                    password_confirm = KiwiLockPasswordConfirm(hass, lock_device, master_uid, device_info["did"], password_input, unlock_data_input)
+                    password_confirm = KiwiLockPasswordConfirm(hass, entry, lock_device, master_uid, device_info["did"], password_input, unlock_data_input)
                     device_entities = [
                         KiwiLockStatus(hass, lock_device, latest_event, history_events),  
                         KiwiLockEvent(hass, lock_device, latest_event, history_events, users),  
@@ -83,6 +84,7 @@ async def initialize_devices_and_groups(hass: HomeAssistant, access_token: str, 
                                 user_id = user.get("number", "unknown")
                                 user_entity = KiwiLockUser(
                                     hass,
+                                    entry,
                                     lock_device,
                                     user,
                                     device_id=lock_device.device_id,

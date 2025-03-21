@@ -13,6 +13,8 @@ from homeassistant.const import EntityCategory
 from ..conn.userinfo import update_lock_user_alias
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.components.text import TextEntity
+from homeassistant.config_entries import ConfigEntry
+from ..conn.token_manager import TokenManager
 
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
@@ -122,7 +124,8 @@ class KiwiLockStatus(Entity):
 
     @property
     def state(self):
-        name = self._event.get("name", "unknown")   
+        _LOGGER.info(f"事件数据: {self._event}")
+        name = self._event.get("name", "unknown")
         return self._notify_time + " " + self.STATE_MAP.get(name, name)
 
     @property
@@ -264,8 +267,9 @@ class KiwiLockEvent(Entity):
 
 class KiwiLockUser(TextEntity, RestoreEntity):
     """锁用户实体"""
-    def __init__(self, hass, lock_device, user_info, device_id, unique_id):
+    def __init__(self, hass, entry, lock_device, user_info, device_id, unique_id):
         self.hass = hass
+        self._entry = entry
         self._lock_device = lock_device
         self._user_info = user_info
         self._user_type = user_info.get("type", "unknown")
@@ -329,59 +333,25 @@ class KiwiLockUser(TextEntity, RestoreEntity):
             raise ValueError("别名长度不能超过16个字符")
             
         domain_data = self.hass.data.get(DOMAIN, {})
-        token_manager = domain_data.get("token_manager")
         session = domain_data.get("session")
-        access_token = domain_data.get("access_token")
             
-        if not all([token_manager, session, access_token]):
+        if not all([session]):
             raise ValueError("无法获取必要组件")
 
-        try:
-            success = await update_lock_user_alias(
-                self.hass,
-                access_token,
-                self._device_id,
-                self._user_type,
-                self._user_number,
-                value,
-                session
-            )
-            if success:
-                self._attr_native_value = value
-                self.async_write_ha_state()
-                return
-                
-        except Exception as e:
-            if "invalid_token" in str(e):
-                _LOGGER.info("Token已失效，尝试刷新...")
-                try:
-                    new_token = await token_manager.get_token(session)
-                    if not new_token:
-                        raise ValueError("刷新token失败")
-                        
-                    domain_data["access_token"] = new_token
-                    self.hass.data[DOMAIN]["access_token"] = new_token
-                    success = await update_lock_user_alias(
-                        self.hass,
-                        new_token,
-                        self._device_id,
-                        self._user_type,
-                        self._user_number,
-                        value,
-                        session
-                    )
-                    if success:
-                        self._attr_native_value = value
-                        self.async_write_ha_state()
-                        return
-                        
-                except Exception as token_error:
-                    _LOGGER.error(f"刷新token时发生错误: {token_error}")
-                    raise ValueError(f"更新别名失败: {token_error}")
-            else:
-                _LOGGER.error(f"更新别名时发生错误: {e}")
-                raise ValueError(f"更新别名失败: {e}")
-
+        success = await update_lock_user_alias(
+            self.hass,
+            self._entry,
+            self._device_id,
+            self._user_type,
+            self._user_number,
+            value,
+            session
+        )
+        if success:
+            self._attr_native_value = value
+            self.async_write_ha_state()
+            return
+            
         raise ValueError("更新别名失败")
 
     async def async_added_to_hass(self):

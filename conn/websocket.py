@@ -12,6 +12,7 @@ from ..const import LOGGER_NAME, WS_URL, DOMAIN
 from .utils import convert_wsevent_format, convert_media_event_format
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .userinfo import get_llock_userinfo
+from .token_manager import TokenManager
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
 
@@ -29,8 +30,10 @@ async def generate_uuid():
     return re.sub(r'[xy]', replace_x_or_y, uuid_pattern)
 
 
-async def start_websocket_connection(hass, access_token, session):
+async def start_websocket_connection(hass, entry, session):
     """启动 WebSocket 连接并维护心跳和消息处理."""
+    token_manager = TokenManager(hass, entry)
+    access_token = await token_manager.get_token(hass)
     ws_url = f"{WS_URL}/?access_token={access_token}" 
     retry_count = 0
     max_retries = 5
@@ -51,7 +54,7 @@ async def start_websocket_connection(hass, access_token, session):
                 
                 tasks = [
                     asyncio.create_task(send_heartbeat(ws)),  
-                    asyncio.create_task(handle_websocket_messages(ws, hass))  
+                    asyncio.create_task(handle_websocket_messages(ws, hass, entry))  
                 ]
                 
                 try:
@@ -154,13 +157,13 @@ async def send_unlock_command(hass, access_token, unlock_data, device_id) -> boo
         _LOGGER.error(f"指令发送失败: {str(e)}")
         return False
 
-async def handle_websocket_messages(ws, hass):
+async def handle_websocket_messages(ws, hass, entry):
     """处理 WebSocket 消息并更新实体状态"""
     try:
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 data = json.loads(msg.data)
-                _LOGGER.info(f"接收到消息: {data}")
+                #_LOGGER.info(f"接收到消息: {data}")
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):
                     
@@ -176,7 +179,7 @@ async def handle_websocket_messages(ws, hass):
                         _LOGGER.warning(f"未知事件类型: {payload}")
                     _LOGGER.info(f"事件数据格式化: {payload}")
 
-                    await update_device_state(hass, device_id, payload)
+                    await update_device_state(hass, entry, device_id, payload)
                     
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 _LOGGER.error(f"WebSocket 错误: {msg.data}")
@@ -186,42 +189,19 @@ async def handle_websocket_messages(ws, hass):
         _LOGGER.error(f"处理 WebSocket 消息时发生错误: {e}")
         raise
 
-async def update_device_state(hass, device_id, event_data):
+async def update_device_state(hass, entry, device_id, event_data):
     """根据WebSocket消息更新设备实体状态"""
     try:
         device_entities = []
         domain_data = hass.data.get(DOMAIN, {})
         
-        token_manager = domain_data.get("token_manager")
         session = domain_data.get("session")
-        access_token = domain_data.get("access_token")
-        
-        if not all([token_manager, session, access_token]):
+        if not all([session]):
             _LOGGER.error("无法获取必要组件")
             return
             
-
-        try:
-            users = await get_llock_userinfo(hass, access_token, device_id, session)
-        except Exception as e:
-            if "invalid_token" in str(e):
-                _LOGGER.info("Token已失效，尝试刷新...")
-                try:
-                    new_token = await token_manager.get_token(session)
-                    if new_token:
-                        domain_data["access_token"] = new_token
-                        hass.data[DOMAIN]["access_token"] = new_token
-                        users = await get_llock_userinfo(hass, new_token, device_id, session)
-                    else:
-                        _LOGGER.error("刷新token失败")
-                        return
-                except Exception as token_error:
-                    _LOGGER.error(f"刷新token时发生错误: {token_error}")
-                    return
-            else:
-                _LOGGER.error(f"获取用户信息失败: {e}")
-                return
-        
+        users = await get_llock_userinfo(hass, entry, device_id, session)
+  
         if "devices" in domain_data and device_id in domain_data["devices"]:
             device_entities = domain_data["devices"][device_id]
         
