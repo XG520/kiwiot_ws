@@ -27,7 +27,11 @@ class TokenManager:
         self._token_type: str = "bearer"
         self._expires_at: Optional[float] = None
         self._lock = Lock()
-        self._storage_file = Path(hass.config.path(f"kiwiot_ws/kiwiot_tokens{entry.data.get(CONF_IDENTIFIER)}.json"))
+        
+        storage_dir = Path(hass.config.path("kiwiot_ws"))
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        safe_identifier = self._identifier.replace("+", "_").replace("/", "_")
+        self._storage_file = storage_dir / f"kiwiot_tokens_{safe_identifier}.json"
 
     async def _load_stored_tokens(self) -> None:
         """从存储文件异步加载令牌"""
@@ -47,6 +51,8 @@ class TokenManager:
     async def _save_tokens(self) -> None:
         """保存令牌到存储文件"""
         try:
+            self._storage_file.parent.mkdir(parents=True, exist_ok=True)
+            
             data = {
                 "identifier": self._identifier,
                 "access_token": self._access_token,
@@ -55,11 +61,14 @@ class TokenManager:
                 "token_type": self._token_type,
                 "updated_at": datetime.now().isoformat()
             }
+            
             async with aiofiles.open(self._storage_file, "w") as f:
-                await f.write(json.dumps(data))
-            _LOGGER.info(f"Token信息已保存到存储: {self._storage_file}")
+                await f.write(json.dumps(data, indent=2))
+            _LOGGER.debug(f"Token信息已保存到: {self._storage_file}")
+            
         except Exception as e:
             _LOGGER.error(f"保存Token失败: {e}")
+            raise
 
     def _is_token_expired(self) -> bool:
         """检查token是否过期"""
