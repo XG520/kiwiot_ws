@@ -1,11 +1,10 @@
-import asyncio
 import logging
 import aiohttp
 from homeassistant.const import Platform
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, LOGGER_NAME, CONF_IDENTIFIER, CONF_CREDENTIAL, CONF_CLIENT_ID, CONF_IGNORE_SSL
+from .const import DOMAIN, LOGGER_NAME, CONF_CLIENT_ID, CONF_IGNORE_SSL
 from .conn.websocket import start_websocket_connection
 from .device_manager import initialize_devices_and_groups
 from .conn.token_manager import TokenManager

@@ -1,7 +1,6 @@
-__pycache__
-数据结构.json
-cache
 */__pycache__
-*/.cache
-*/.pytest_cache
-*/config.json
+数据结构.json
+kiwiot_ws/cache
+*/*/__pycache__
+*/*/.cache
+*/*/.pytest_cache
