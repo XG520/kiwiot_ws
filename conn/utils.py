@@ -87,7 +87,7 @@ async def convert_wsevent_format(event_data: dict) -> dict:
         1: "FINGERPRINT",
         2: "PASSWORD",
         3: "CARD",
-        5: "微信",
+        5: "远程",
         6: "FACE",
         7: "掌纹",
         9: "临时密码"
