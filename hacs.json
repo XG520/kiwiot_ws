@@ -1,0 +1,5 @@
+{
+    "name": "kiwiot_ws",
+    "homeassistant": "2024.4.4",
+    "hacs": "1.34.0"
+}
