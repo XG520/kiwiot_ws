@@ -15,12 +15,7 @@ tts
 .shopping_list.json
 automations.yaml
 configuration.yaml
-home-assistant_v2.db
-home-assistant.log
-home-assistant_v2.db-shm
-home-assistant_v2.db-wal
-home-assistant.log.1
-home-assistant.log.fault
+home-assistant*
 scenes.yaml
 secrets.yaml
 scripts.yaml
