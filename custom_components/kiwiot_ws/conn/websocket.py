@@ -33,7 +33,7 @@ async def generate_uuid():
 async def start_websocket_connection(hass, entry, session):
     """启动 WebSocket 连接并维护心跳和消息处理."""
     token_manager = TokenManager(hass, entry)
-    access_token = await token_manager.get_token(hass)
+    access_token = await token_manager.get_token(session)
     ws_url = f"{WS_URL}/?access_token={access_token}" 
     retry_count = 0
     max_retries = 5
