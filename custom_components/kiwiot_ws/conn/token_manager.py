@@ -28,7 +28,7 @@ class TokenManager:
         self._expires_at: Optional[float] = None
         self._lock = Lock()
         
-        storage_dir = Path(hass.config.path("kiwiot_ws"))
+        storage_dir = Path(hass.config.path("kiwiot_config"))
         storage_dir.mkdir(parents=True, exist_ok=True)
         safe_identifier = self._identifier.replace("+", "_").replace("/", "_")
         self._storage_file = storage_dir / f"kiwiot_tokens_{safe_identifier}.json"

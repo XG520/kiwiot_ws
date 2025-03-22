@@ -63,7 +63,7 @@ class KiwiLockUnlockDataInput(TextEntity):
         self._attr_entity_category = None
         self._attr_translation_key = "password_input"
         self._attr_should_poll = False
-        config_dir = Path(hass.config.path("kiwiot_ws"))
+        config_dir = Path(hass.config.path("kiwiot_config"))
         config_dir.mkdir(exist_ok=True)
         self._config_file = config_dir / f"unlock_data_{device_id}.json"
         self._attr_native_value = ""
