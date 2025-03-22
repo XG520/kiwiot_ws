@@ -415,9 +415,30 @@ class KiwiLockCamera(Camera):
 
     async def update_from_event(self, event_data):
         """从新事件更新相机数据."""
-        _LOGGER.info(f"更新相机事件数据: {event_data.get('name')}")
-        self._event_data = event_data
-        await self._image_cache.clear_cache()
+        try:
+            _LOGGER.info(f"更新相机事件数据: {event_data.get('name')}")
+            self._event_data = event_data
+            
+            await self._image_cache.clear_cache()
+            
+            url = None
+            if (self._event_data and 
+                "data" in self._event_data and 
+                "image" in self._event_data["data"] and 
+                "uri" in self._event_data["data"]["image"]):
+                url = self._event_data["data"]["image"]["uri"]
+                
+            if url:
+                _LOGGER.debug(f"开始预下载图片: {url}")
+                await self._image_cache.get_image(url)
+                _LOGGER.debug("图片预下载完成")
+                
+            self.async_write_ha_state()
+            return True
+            
+        except Exception as e:
+            _LOGGER.error(f"更新相机事件数据失败: {e}")
+            return False
 
     @property
     def device_info(self):

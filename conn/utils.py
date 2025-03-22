@@ -1,6 +1,7 @@
 ﻿import logging
 import aiohttp
 import aiofiles
+import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
@@ -159,7 +160,8 @@ class ImageCache:
         self._current_image_url = None
         self._current_cache_file = None
         self._executor = ThreadPoolExecutor(max_workers=2)
-        self._max_cache_files = 10 
+        self._max_cache_files = 10
+        self._downloading = False
 
     async def _cleanup_old_cache(self):
         """清理旧的缓存文件，只保留最近的10个文件"""
@@ -205,21 +207,24 @@ class ImageCache:
                 _LOGGER.error(f"清除缓存文件失败: {e}")
 
     async def get_image(self, url: str) -> Optional[bytes]:
+        """获取图片，支持缓存和预下载"""
         if not url:
             return None
 
         cache_file = self._cache_dir / self._get_cache_filename(url)
         
-        # 如果URL相同且缓存存在，直接返回缓存
         if self._current_image_url == url and cache_file.exists():
             try:
-                _LOGGER.info(f"使用缓存文件: {cache_file}")
+                _LOGGER.debug(f"使用缓存图片: {cache_file}")
                 return await self._read_file_bytes(cache_file)
             except Exception as e:
-                _LOGGER.error(f"读取缓存文件失败: {e}")
+                _LOGGER.error(f"读取缓存图片失败: {e}")
 
-        # 下载新图片
+        while self._downloading:
+            await asyncio.sleep(0.1)
+
         try:
+            self._downloading = True
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     if response.status != 200:
@@ -228,22 +233,21 @@ class ImageCache:
 
                     image_data = await response.read()
                     
-                    # 在线程池中处理图片
                     def process_image():
                         image = Image.open(BytesIO(image_data))
                         return image.rotate(-90, expand=True)
                     
                     rotated_image = await self.hass.async_add_executor_job(process_image)
-                    
-                    # 保存到缓存
                     await self._save_image_to_file(rotated_image, cache_file)
                     
-                    # 更新缓存信息
                     self._current_image_url = url
                     self._current_cache_file = cache_file
                     
+                    _LOGGER.debug(f"图片已下载并缓存: {url}")
                     return await self._read_file_bytes(cache_file)
 
         except Exception as e:
             _LOGGER.error(f"处理图片失败: {e}")
             return None
+        finally:
+            self._downloading = False
