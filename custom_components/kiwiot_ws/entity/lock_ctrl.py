@@ -194,7 +194,7 @@ class KiwiLockPasswordConfirm(ButtonEntity):
             self.async_write_ha_state()  
             #开锁ws
             send_token = response.get("data", {}).get("access_token", '')
-            _LOGGER.info(f"发送开锁ws: {send_token},unlock_data: {unlock_data},device_id: {self._device_id}")
+            #_LOGGER.info(f"发送开锁ws: {send_token},unlock_data: {unlock_data},device_id: {self._device_id}")
             await send_unlock_command(self.hass, send_token, unlock_data, self._device_id)
             # 创建自动更新任务
             if self._update_timer:

@@ -39,22 +39,27 @@ async def start_websocket_connection(hass, entry, session):
     max_retries = 5
     retry_delay = 5
     
+    # 创建消息队列
+    msg_queue = asyncio.Queue()
+    hass.data[DOMAIN]["msg_queue"] = msg_queue
+    
     while retry_count < max_retries:
         try:
             if session.closed:
-                _LOGGER.warning("Session已关闭,停止WebSocket连接")
+                _LOGGER.warning("Session已关闭,停止WebSocket连接") 
                 return
             if DOMAIN not in hass.data:
                 _LOGGER.warning("集成已被移除,停止WebSocket连接")
                 return
                 
             async with session.ws_connect(ws_url) as ws:
-                hass.data[DOMAIN].update({"websocket": ws})
+                hass.data[DOMAIN]["ws"] = ws
                 _LOGGER.info(f"WebSocket 连接已建立 (重试次数: {retry_count})")
                 
                 tasks = [
-                    asyncio.create_task(send_heartbeat(ws)),  
-                    asyncio.create_task(handle_websocket_messages(ws, hass, entry))  
+                    asyncio.create_task(send_heartbeat(ws)),
+                    asyncio.create_task(handle_websocket_messages(ws, hass, entry)),
+                    asyncio.create_task(process_message_queue(ws, msg_queue))
                 ]
                 
                 try:
@@ -70,13 +75,12 @@ async def start_websocket_connection(hass, entry, session):
                         except asyncio.CancelledError:
                             pass
                             
-                    # 检查任务异常
                     for task in done:
                         if task.exception():
+                            _LOGGER.error(f"WebSocket任务异常: {task.exception()}")
                             raise task.exception()
                             
                 except asyncio.CancelledError:
-                    hass.data[DOMAIN].pop("websocket", None)
                     _LOGGER.info("WebSocket任务被取消")
                     return
                     
@@ -89,7 +93,6 @@ async def start_websocket_connection(hass, entry, session):
             
         if retry_count < max_retries:
             if DOMAIN not in hass.data or session.closed:
-                hass.data[DOMAIN].pop("websocket", None)
                 _LOGGER.warning("集成已被移除或session已关闭,停止重试")
                 return
             wait_time = retry_delay * (2 ** retry_count)
@@ -123,47 +126,57 @@ async def send_heartbeat(ws):
         _LOGGER.error(f"心跳消息发送失败: {e}")
         raise
 
-async def send_unlock_command(hass, access_token, unlock_data, device_id) -> bool:
+async def send_unlock_command(hass, send_token, unlock_data, device_id) -> bool:
     """发送开锁指令"""
-    uuid = await generate_uuid()
-    ws: Optional[aiohttp.ClientWebSocketResponse] = hass.data[DOMAIN].get("websocket")
-    if not ws or ws.closed:
-        _LOGGER.error("WebSocket连接不可用")
-        return False
-
-    msg = {
+    try:
+        msg_queue = hass.data.get(DOMAIN, {}).get("msg_queue")
+        if not msg_queue:
+            _LOGGER.error("消息队列未初始化")
+            return False
+            
+        uuid = await generate_uuid()
+        msg = {
             "header": {
                 "namespace": "Iot.Device",
-                "name": "Ctrl",
+                "name": "Ctrl", 
                 "messageId": uuid,
                 "payloadVersion": 1,
-                "secureToken": access_token
+                "secureToken": send_token
             },
             "payload": {
                 "did": device_id,
                 "verify": True,
                 "data": unlock_data
             }
-    }
-    _LOGGER.info(f"开锁指令: {msg}")
-    try:
-        await ws.send_json(msg)
-        _LOGGER.debug("开锁指令已成功发送")
-        return True 
-
-    except (aiohttp.ClientConnectionError,
-           aiohttp.ClientPayloadError,
-           asyncio.CancelledError) as e:
-        _LOGGER.error(f"指令发送失败: {str(e)}")
+        }
+        
+        await msg_queue.put(msg)
+        _LOGGER.debug("开锁指令已加入队列")
+        return True
+        
+    except Exception as e:
+        _LOGGER.error(f"发送开锁指令失败: {e}")
         return False
 
 async def handle_websocket_messages(ws, hass, entry):
     """处理 WebSocket 消息并更新实体状态"""
+    response_futures = {}  
+    
     try:
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 data = json.loads(msg.data)
-                #_LOGGER.info(f"接收到消息: {data}")
+                _LOGGER.info(f"接收到消息: {data}")
+                
+                # 处理开锁响应
+                if data.get("header", {}).get("name") == "CtrlResponse":
+                    message_id = data.get("header", {}).get("messageId")
+                    if message_id in response_futures:
+                        response_futures[message_id].set_result(data)
+                        del response_futures[message_id]
+                        continue
+                
+                # 处理事件通知
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):
                     
@@ -187,6 +200,9 @@ async def handle_websocket_messages(ws, hass, entry):
             
     except Exception as e:
         _LOGGER.error(f"处理 WebSocket 消息时发生错误: {e}")
+        for future in response_futures.values():
+            if not future.done():
+                future.set_exception(e)
         raise
 
 async def update_device_state(hass, entry, device_id, event_data):
@@ -269,6 +285,39 @@ async def stop_websocket_connection(websocket_task):
         _LOGGER.info("WebSocket 连接任务被取消")
     except Exception as e:
         _LOGGER.error(f"停止 WebSocket 连接任务时发生错误: {e}")
+
+async def process_message_queue(ws, queue):
+    """处理消息队列中的请求"""
+    try:
+        while True:
+            try:
+                msg = await queue.get()
+                if ws.closed:
+                    _LOGGER.error("WebSocket已关闭,无法发送消息")
+                    queue.task_done()
+                    continue
+
+                await ws.send_json(msg)
+                _LOGGER.info(f"消息队列发送消息: {msg}")
+                queue.task_done()
+                    
+            except asyncio.CancelledError:
+                _LOGGER.info("消息队列处理被取消")
+                raise
+            except Exception as e:
+                _LOGGER.error(f"处理消息队列异常: {e}")
+                if not queue.empty():
+                    queue.task_done()
+                
+    except asyncio.CancelledError:
+        _LOGGER.info("消息队列处理任务结束")
+        raise
+    finally:
+        for fut in response_futures.values():
+            if not fut.done():
+                fut.cancel()
+
+response_futures = {}
 
 
 
