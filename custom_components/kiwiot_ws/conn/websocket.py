@@ -168,7 +168,6 @@ async def handle_websocket_messages(ws, hass, entry):
                 data = json.loads(msg.data)
                 _LOGGER.info(f"接收到消息: {data}")
                 
-                # 处理开锁响应
                 if data.get("header", {}).get("name") == "CtrlResponse":
                     message_id = data.get("header", {}).get("messageId")
                     if message_id in response_futures:
@@ -176,7 +175,6 @@ async def handle_websocket_messages(ws, hass, entry):
                         del response_futures[message_id]
                         continue
                 
-                # 处理事件通知
                 if (data.get("header", {}).get("namespace") == "Iot.Device" and 
                     data.get("header", {}).get("name") == "EventNotify"):
                     
