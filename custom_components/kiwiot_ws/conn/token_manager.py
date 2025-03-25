@@ -103,11 +103,21 @@ class TokenManager:
                     if await self.is_token_valid(session):
                         _LOGGER.info(f"使用缓存的token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
                         return self._access_token
+                    elif not await self.is_token_valid(session):
+                        _LOGGER.warning("Token无效")
+                        await self._fetch_new_token(session)
+                        _LOGGER.info(f"{self._access_token}使用新token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
+                        return self._access_token
+                    else:
+                        _LOGGER.warning("未知错误")
+                        await self._fetch_new_token(session)
+                        _LOGGER.info(f"{self._access_token}使用新token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
+                        return self._access_token
                 else:
                     _LOGGER.warning("Token已过期")
                     await self._fetch_new_token(session)
                     _LOGGER.info(f"{self._access_token}使用新token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
-                return self._access_token
+                    return self._access_token
 
                 # if self._refresh_token:
                 #     try:
@@ -119,11 +129,11 @@ class TokenManager:
 
                 # _LOGGER.info("获取新token")
 
-
             except Exception as e:
                 _LOGGER.error(f"获取token失败: {e}")
                 return None
 
+#刷新接口存在问题，暂时不使用
     async def _refresh_access_token(self, session) -> None:
         """使用refresh_token刷新access_token"""
         headers = {"X-Kiwik-Client-Id": self._client_id}
