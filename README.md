@@ -40,6 +40,7 @@
 - Client ID (抓包获取)
 - 是否忽略SSL证书验证（可选）
 
+
 ## 支持的实体类型
 
 - 门锁状态 (sensor.xxx_status)
@@ -52,6 +53,20 @@
 - 需要稳定的网络连接
 - 建议定期检查更新以获得最新功能和修复
 - 如遇到问题，请通过此地址：https://bbs.hassbian.com/forum.php?mod=viewthread&tid=27837&page=5#pid661852 教程开启日志模式，提供更多调试信息
+
+## 赞赏支持
+如果您觉得这个项目对您有帮助，欢迎打赏支持，这将鼓励我继续维护和改进该项目！
+
+<table>
+  <tr>
+    <td align="center">微信赏码</td>
+    <td align="center">支付宝赏码</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/wechat.png" alt="微信赞赏码" width="200"/></td>
+    <td align="center"><img src="docs/images/alipay.jpg" alt="支付宝赞赏码" width="200"/></td>
+  </tr>
+</table>
 
 ## 免责声明 
  1. 本插件仅用于学习研究，禁止用于商业用途

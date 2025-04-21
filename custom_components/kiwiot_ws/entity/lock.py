@@ -81,6 +81,7 @@ class KiwiLockStatus(Entity):
         "UNLOCKED": "已开锁",
         "LOCKED": "已关锁",
         "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
+        "LOCK_INDOOR_LEVER_UNLOCK": "门内把手开锁",
         "REMOTE_UNLOCK": "已开锁"
     }
     def __init__(self, hass, device, event, history_events):
@@ -175,6 +176,7 @@ class KiwiLockEvent(Entity):
         "UNLOCKED": "锁已经打开",
         "LOCKED": "锁已锁上",
         "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
+        "LOCK_INDOOR_LEVER_UNLOCK": "门内把手开锁",
         "HUMAN_WANDERING": "有人徘徊",
         "LOCK_ADD_USER": "添加用户"
     }
