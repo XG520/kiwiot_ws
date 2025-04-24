@@ -1,4 +1,3 @@
-
 import logging
 import aiohttp
 import asyncio
@@ -31,14 +30,13 @@ async def generate_uuid() -> str:
 async def start_websocket_connection(hass, entry, session):
     """启动 WebSocket 连接并维护心跳和消息处理."""
     token_manager = TokenManager(hass, entry)
-    retry_count = 0
-    max_retries = 5
     base_retry_delay = 5
-    
+
     msg_queue = asyncio.Queue()
     hass.data[DOMAIN]["msg_queue"] = msg_queue
-    
-    while retry_count < max_retries:
+
+    retry_count = 0
+    while True:
         try:
             if session.closed:
                 _LOGGER.warning("Session已关闭,停止WebSocket连接") 
@@ -46,67 +44,69 @@ async def start_websocket_connection(hass, entry, session):
             if DOMAIN not in hass.data:
                 _LOGGER.warning("集成已被移除,停止WebSocket连接")
                 return
-               
+
             access_token = await token_manager.get_token(session)
             ws_url = f"{WS_URL}/?access_token={access_token}"
-                
+
             async with session.ws_connect(ws_url) as ws:
                 hass.data[DOMAIN]["ws"] = ws
                 _LOGGER.info(f"WebSocket 连接已建立 (重试次数: {retry_count})")
-                
+
                 tasks = [
                     asyncio.create_task(send_heartbeat(ws)),
                     asyncio.create_task(handle_websocket_messages(ws, hass, entry)),
                     asyncio.create_task(process_message_queue(ws, msg_queue))
                 ]
-                
+
                 try:
                     done, pending = await asyncio.wait(
                         tasks, 
                         return_when=asyncio.FIRST_EXCEPTION
                     )
-                    
+
                     for task in pending:
                         task.cancel()
                         try:
                             await task
                         except asyncio.CancelledError:
                             pass
-                            
+
                     for task in done:
                         exc = task.exception()
                         if exc:
                             _LOGGER.error(f"WebSocket任务异常: {exc}")
                             raise exc
-                            
+
                 except asyncio.CancelledError:
                     _LOGGER.info("WebSocket任务被取消")
                     return
-                    
+
         except aiohttp.ClientError as e:
             if "Session is closed" in str(e):
                 _LOGGER.warning("Session已关闭,停止重试")
                 return
             _LOGGER.error(f"WebSocket 连接错误: {e}")
             retry_count += 1
-            
-        if retry_count < max_retries:
-            if DOMAIN not in hass.data or session.closed:
-                _LOGGER.warning("集成已被移除或session已关闭,停止重试")
-                return
-            wait_time = base_retry_delay * (2 ** retry_count)
-            _LOGGER.info(f"等待 {wait_time} 秒后重试连接")
-            await asyncio.sleep(wait_time)
-        else:
-            _LOGGER.error(f"WebSocket 连接重试次数达到上限 ({max_retries})")
-            break
+
+        except Exception as e:
+            _LOGGER.error(f"WebSocket 连接发生未知异常: {e}")
+            retry_count += 1
+
+        # 无限重连，除非集成被移除或 session 关闭
+        if DOMAIN not in hass.data or session.closed:
+            _LOGGER.warning("集成已被移除或session已关闭,停止重连")
+            return
+        wait_time = base_retry_delay * min(10, 2 ** retry_count)
+        _LOGGER.info(f"等待 {wait_time} 秒后重试连接 (当前重试次数: {retry_count})")
+        await asyncio.sleep(wait_time)
 
 async def send_heartbeat(ws):
     """发送心跳消息。"""
-    uuid = await generate_uuid()
+
     interval = 30
     try:
         while not ws.closed:
+            uuid = await generate_uuid()
             ping_message = {
                 "header": {
                     "namespace": "Iot.Application",

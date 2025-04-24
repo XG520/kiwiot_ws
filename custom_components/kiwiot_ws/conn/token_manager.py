@@ -106,17 +106,17 @@ class TokenManager:
                     elif not await self.is_token_valid(session):
                         _LOGGER.warning("Token无效")
                         await self._fetch_new_token(session)
-                        _LOGGER.info(f"{self._access_token}使用新token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
+                        _LOGGER.warning(f"{self._access_token}使用新token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
                         return self._access_token
                     else:
                         _LOGGER.warning("未知错误")
                         await self._fetch_new_token(session)
-                        _LOGGER.info(f"{self._access_token}使用新token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
+                        _LOGGER.warning(f"{self._access_token}使用新token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
                         return self._access_token
                 else:
-                    _LOGGER.warning("Token已过期")
+                    _LOGGER.warning(f"Token：{self._access_token} 已过期")
                     await self._fetch_new_token(session)
-                    _LOGGER.info(f"{self._access_token}使用新token, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
+                    _LOGGER.warning(f"token已刷新：{self._access_token}, 过期时间: {datetime.fromtimestamp(self._expires_at)}")
                     return self._access_token
 
                 # if self._refresh_token:
