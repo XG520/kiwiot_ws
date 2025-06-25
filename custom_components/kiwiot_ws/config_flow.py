@@ -13,9 +13,12 @@ class KiwiOTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             identifier = user_input.get(CONF_IDENTIFIER)
             credential = user_input.get(CONF_CREDENTIAL)
             client_id = user_input.get(CONF_CLIENT_ID)
-
-            if not isinstance(identifier, str) or not identifier.startswith("+86") or len(identifier) != 14:
-                errors["identifier"] = "identifier_invalid_format"
+            
+            #放宽手机号格式校验
+            # if not isinstance(identifier, str) or not identifier.startswith("+86") or len(identifier) != 14:
+            #     errors["identifier"] = "identifier_invalid_format"
+            if not isinstance(identifier, str):
+                 errors["identifier"] = "identifier_invalid_format"
             elif not all([identifier, credential, client_id]):
                 errors["base"] = "missing_fields"
             else:

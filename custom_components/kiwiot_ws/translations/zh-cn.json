@@ -5,7 +5,7 @@
               "title": "优质websocket",
               "description": "请输入您的凭据以连接到KiwiOT。",
               "data": {
-                  "identifier": "手机号（+86开头）",
+                  "identifier": "手机号（+XX的国际区号开头）或邮箱",
                   "credential": "密码",
                   "X-Kiwik-Client-Id": "Client ID",
                   "ignore_ssl": "忽略SSL证书验证（不安全）"
@@ -14,7 +14,7 @@
       },
       "error": {
           "identifier_too_short": "错误格式账号",
-          "identifier_invalid_format": "手机号必须以+86开头且为14位",
+          "identifier_invalid_format": "手机号必须以+XX的国际区号开头或邮箱",
           "missing_fields": "请填写所有必填项"
       }
   }
