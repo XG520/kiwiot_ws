@@ -36,7 +36,7 @@ class KiwiLockDevice:
         """返回设备信息"""
         return DeviceInfo(
             identifiers={(DOMAIN, self.device_id)},
-            name=f"{self.group_name} - {self.name}",
+            name=self.name,
             manufacturer="KiwiOT",
             model="Smart Lock",
             sw_version=self.device_info.get("version", "unknown")
@@ -75,6 +75,7 @@ class KiwiLockStatus(Entity):
         "FACE": "人脸",
         "PASSWORD": "密码",
         "FINGERPRINT": "指纹",
+        "FINGER_VEIN": "指静脉",
         "CARD": "门卡"
     }
     STATE_MAP = {
@@ -125,7 +126,7 @@ class KiwiLockStatus(Entity):
 
     @property
     def state(self):
-        _LOGGER.info(f"事件数据: {self._event}")
+        _LOGGER.debug(f"事件数据: {self._event}")
         name = self._event.get("name", "unknown")
         return self._notify_time + " " + self.STATE_MAP.get(name, name)
 
@@ -170,6 +171,7 @@ class KiwiLockEvent(Entity):
         "FACE": "人脸",
         "PASSWORD": "密码",
         "FINGERPRINT": "指纹",
+        "FINGER_VEIN": "指静脉",
         "CARD": "门卡"
     }
     STATE_MAP = {
@@ -178,7 +180,9 @@ class KiwiLockEvent(Entity):
         "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
         "LOCK_INDOOR_LEVER_UNLOCK": "门内把手开锁",
         "HUMAN_WANDERING": "有人徘徊",
-        "LOCK_ADD_USER": "添加用户"
+        "LOCK_ADD_USER": "添加用户",
+        "LOCK_FINGER_VEIN_FRONZEN": "指静脉冻结",
+        "ACTIVE_MONITOR": "主动监控"
     }
     def __init__(self, hass, device, event, history_events, users):
         self.hass = hass
@@ -250,14 +254,44 @@ class KiwiLockEvent(Entity):
         else:    
             return self._notify_time + " " + self.STATE_MAP.get(name, name)
 
+    def _get_welcome_name(self):
+        """计算欢迎词：有括号取括号前、无括号且非空取「主人」、空则空"""
+        name = self._event.get("name", "unknown")
+        data = self._event.get("data", {})
+        lock_user = data.get("lock_user", {})
+        event_type = lock_user.get("type", "unknown")
+        user_id = lock_user.get("id", "unknown")
+
+        alias = None
+        if self._users and isinstance(self._users, list):
+            try:
+                user_id_int = int(user_id) if user_id != "unknown" else -1
+                matching_user = next(
+                    (user for user in self._users
+                     if user.get("type") == event_type
+                     and user.get("number") == user_id_int),
+                    None
+                )
+                if matching_user and matching_user.get("alias"):
+                    alias = matching_user["alias"]
+            except (ValueError, TypeError):
+                pass
+
+        if not alias:
+            return ""
+        if "(" not in alias:
+            return "主人"
+        return alias.split("(")[0]
+
     @property
     def extra_state_attributes(self):
         """返回额外的状态属性"""
 
-        attributes = { 
+        attributes = {
             "更新时间": self._event_time,
             "设备ID": self._device.device_id,
             "类型": self._event.get("level", "unknown"),
+            "欢迎词": self._get_welcome_name(),
             "数据": self._event.get("data", "unknown")
         }
 
@@ -284,11 +318,12 @@ class KiwiLockUser(TextEntity, RestoreEntity):
         self._attr_native_value = user_info.get("alias", "")
         self._attr_mode = "text"
         self._attr_native_max = 16
+        self._attr_has_entity_name = True
         
     @property
     def name(self):
         """实体名称"""
-        return f"{self._lock_device.name} User {self._user_number}"
+        return f"User {self._user_number}"
 
     @property
     def unique_id(self):
@@ -309,9 +344,7 @@ class KiwiLockUser(TextEntity, RestoreEntity):
     @property
     def device_info(self):
         """设备信息"""
-        return {
-            "identifiers": {(DOMAIN, self._device_id)},
-        }
+        return self._lock_device.get_device_info()
 
     @property
     def state(self):
@@ -368,6 +401,7 @@ class KiwiLockCamera(Camera):
         "FACE": "人脸",
         "PASSWORD": "密码",
         "FINGERPRINT": "指纹",
+        "FINGER_VEIN": "指静脉",
         "CARD": "门卡"
     }
     STATE_MAP = {
@@ -375,7 +409,9 @@ class KiwiLockCamera(Camera):
         "LOCKED": "锁已锁上",
         "LOCK_INDOOR_BUTTON_UNLOCK": "门内按键开锁",
         "HUMAN_WANDERING": "有人徘徊",
-        "LOCK_ADD_USER": "添加用户"
+        "LOCK_ADD_USER": "添加用户",
+        "LOCK_FINGER_VEIN_FRONZEN": "指静脉冻结",
+        "ACTIVE_MONITOR": "主动监控"
     }
 
     def __init__(self, hass, device, event_data, video_info):
@@ -400,39 +436,50 @@ class KiwiLockCamera(Camera):
         if self._video_info and "media" in self._video_info and "uri" in self._video_info["media"]:
             url = self._video_info["media"]["uri"]
             _LOGGER.debug(f"使用视频信息URL: {url}")
-        elif (self._event_data and 
-              "data" in self._event_data and 
-              "image" in self._event_data["data"] and 
-              "uri" in self._event_data["data"]["image"]):
-            url = self._event_data["data"]["image"]["uri"]
-            _LOGGER.debug(f"使用事件数据URL: {url}")
+        elif self._event_data:
+            data = self._event_data.get("data", {})
+            if data:
+                # WS 转换后的格式: data.image.uri
+                if "image" in data and isinstance(data["image"], dict):
+                    url = data["image"].get("uri")
+                # 原始 API 格式: data.image_uri
+                elif "image_uri" in data:
+                    url = data["image_uri"]
+                if url:
+                    _LOGGER.debug(f"使用事件数据URL: {url}")
             
         if not url:
             _LOGGER.warning("没有找到有效的图片URL")
             return None
 
-        image_data = await self._image_cache.get_image(url)
-        _LOGGER.info(f"图片获取{'成功' if image_data else '失败'}")
+        domain_data = self.hass.data.get(DOMAIN, {})
+        session = domain_data.get("session")
+        image_data = await self._image_cache.get_image(url, session)
+        _LOGGER.debug(f"图片获取{'成功' if image_data else '失败'}")
         return image_data
 
     async def update_from_event(self, event_data):
         """从新事件更新相机数据."""
         try:
-            _LOGGER.info(f"更新相机事件数据: {event_data.get('name')}")
+            _LOGGER.debug(f"更新相机事件数据: {event_data.get('name')}")
             self._event_data = event_data
-            
+
             await self._image_cache.clear_cache()
-            
+
             url = None
-            if (self._event_data and 
-                "data" in self._event_data and 
-                "image" in self._event_data["data"] and 
-                "uri" in self._event_data["data"]["image"]):
-                url = self._event_data["data"]["image"]["uri"]
-                
+            if self._event_data:
+                data = self._event_data.get("data", {})
+                if data:
+                    if "image" in data and isinstance(data["image"], dict):
+                        url = data["image"].get("uri")
+                    elif "image_uri" in data:
+                        url = data["image_uri"]
+
             if url:
                 _LOGGER.debug(f"开始预下载图片: {url}")
-                await self._image_cache.get_image(url)
+                domain_data = self.hass.data.get(DOMAIN, {})
+                session = domain_data.get("session")
+                await self._image_cache.get_image(url, session)
                 _LOGGER.debug("图片预下载完成")
                 
             self.async_write_ha_state()
@@ -467,10 +514,30 @@ class KiwiLockCamera(Camera):
         user_type = lock_user.get("type", "")
         displayed_type = self.USER_TYPE_MAP.get(user_type, user_type)
         
+        # 提取图片 URL（兼容两种格式）
+        image_url = None
+        if data:
+            if "image" in data and isinstance(data["image"], dict):
+                image_url = data["image"].get("uri")
+            elif "image_uri" in data:
+                image_url = data["image_uri"]
+
+        # 事件时间转北京时间（与其他实体保持一致）
+        created_at = self._event_data.get("created_at", "")
+        event_time = created_at
+        try:
+            local_time = datetime.fromisoformat(
+                created_at.replace('Z', '+00:00')
+            ).astimezone(ZoneInfo("Asia/Shanghai"))
+            event_time = local_time.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
         return  {
             "level": self._event_data.get("level"),
-            "created_at": self._event_data.get("created_at"),
+            "created_at": event_time,
             "用户ID": lock_user.get("id"),
             "开锁类型": displayed_type,
-            "事件时间": self._event_data.get("created_at")
+            "事件时间": event_time,
+            "图片URL": image_url or "无",
         }

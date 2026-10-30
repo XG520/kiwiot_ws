@@ -8,7 +8,6 @@ from pathlib import Path
 import hashlib
 from PIL import Image
 from io import BytesIO
-from concurrent.futures import ThreadPoolExecutor
 import os
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,7 +57,37 @@ async def get_latest_event_with_data(events: List[Dict]) -> Optional[Dict]:
     except Exception as e:
         _LOGGER.error(f"获取最近data事件失败: {e}")
         return None
-    
+
+async def get_latest_event_with_image(events: List[Dict]) -> Optional[Dict]:
+    """获取最近一次包含图片的事件."""
+    try:
+        if not events:
+            return None
+
+        sorted_events = sorted(
+            events,
+            key=lambda x: datetime.fromisoformat(x.get("created_at", "").replace('Z', '+00:00')),
+            reverse=True
+        )
+
+        for event in sorted_events:
+            data = event.get("data", {})
+            if isinstance(data, dict):
+                # 原始 API 格式: data.image_uri
+                if data.get("image_uri"):
+                    _LOGGER.debug(f"找到最近的图片事件: {event}")
+                    return event
+                # 有 stream_id 的事件（如 HUMAN_WANDERING）
+                if data.get("stream_id"):
+                    _LOGGER.debug(f"找到最近的 stream 事件: {event}")
+                    return event
+
+        return None
+
+    except Exception as e:
+        _LOGGER.error(f"获取最近图片事件失败: {e}")
+        return None
+
 async def get_history_events(events: List[Dict]) -> List[Dict]:
     """获取除最新事件外的所有事件."""
     try:
@@ -90,7 +119,8 @@ async def convert_wsevent_format(event_data: dict) -> dict:
         5: "远程",
         6: "FACE",
         7: "掌纹",
-        9: "临时密码"
+        9: "临时密码",
+        10: "FINGER_VEIN"
     } 
     
     data = event_data.get("data", {})
@@ -159,19 +189,18 @@ class ImageCache:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._current_image_url = None
         self._current_cache_file = None
-        self._executor = ThreadPoolExecutor(max_workers=2)
         self._max_cache_files = 10
         self._downloading = False
 
     async def _cleanup_old_cache(self):
-        """清理旧的缓存文件，只保留最近的10个文件"""
-        try:
+        """清理旧的缓存文件，只保留最近的10个文件（在 executor 中执行，避免阻塞事件循环）"""
+        def _cleanup():
             cache_files = sorted(
                 [f for f in self._cache_dir.glob("*.jpg")],
                 key=lambda x: x.stat().st_mtime,
                 reverse=True
             )
-            
+
             if len(cache_files) > self._max_cache_files:
                 for old_file in cache_files[self._max_cache_files:]:
                     try:
@@ -180,6 +209,8 @@ class ImageCache:
                     except Exception as e:
                         _LOGGER.error(f"删除缓存文件失败: {e}")
 
+        try:
+            await self.hass.async_add_executor_job(_cleanup)
         except Exception as e:
             _LOGGER.error(f"清理缓存文件失败: {e}")
 
@@ -198,15 +229,18 @@ class ImageCache:
             return await file.read()
 
     async def clear_cache(self) -> None:
-        if self._current_cache_file and os.path.exists(self._current_cache_file):
+        if self._current_cache_file:
+            def _remove():
+                if os.path.exists(self._current_cache_file):
+                    os.remove(self._current_cache_file)
             try:
-                os.remove(self._current_cache_file)
+                await self.hass.async_add_executor_job(_remove)
                 self._current_image_url = None
                 self._current_cache_file = None
             except Exception as e:
                 _LOGGER.error(f"清除缓存文件失败: {e}")
 
-    async def get_image(self, url: str) -> Optional[bytes]:
+    async def get_image(self, url: str, session: aiohttp.ClientSession = None) -> Optional[bytes]:
         """获取图片，支持缓存和预下载"""
         if not url:
             return None
@@ -225,8 +259,9 @@ class ImageCache:
 
         try:
             self._downloading = True
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+            _session = session or aiohttp.ClientSession()
+            try:
+                async with _session.get(url) as response:
                     if response.status != 200:
                         _LOGGER.error(f"下载图片失败: HTTP {response.status}")
                         return None
@@ -245,6 +280,9 @@ class ImageCache:
                     
                     _LOGGER.debug(f"图片已下载并缓存: {url}")
                     return await self._read_file_bytes(cache_file)
+            finally:
+                if not session:
+                    await _session.close()
 
         except Exception as e:
             _LOGGER.error(f"处理图片失败: {e}")

@@ -18,9 +18,10 @@ from .entity.lock import (
     )
 from .entity.lock_ctrl import KiwiLockPasswordInput, KiwiLockPasswordConfirm, KiwiLockUnlockDataInput
 from .conn.utils import (
-    get_latest_event, 
-    get_history_events, 
-    get_latest_event_with_data
+    get_latest_event,
+    get_history_events,
+    get_latest_event_with_data,
+    get_latest_event_with_image
     )
 
 _LOGGER = logging.getLogger(f"{LOGGER_NAME}_{__name__}")
@@ -54,9 +55,10 @@ async def initialize_devices_and_groups(hass, entry, session, callback):
                     latest_event = await get_latest_event(events)
                     latest_data_event = await get_latest_event_with_data(events)
                     history_events = await get_history_events(events)
+                    camera_event = await get_latest_event_with_image(events) or latest_data_event
                     video_info = None
-                    if latest_data_event.get("name") == "HUMAN_WANDERING":
-                        stream_id = latest_data_event.get("data", {}).get("stream_id")
+                    if camera_event.get("name") == "HUMAN_WANDERING":
+                        stream_id = camera_event.get("data", {}).get("stream_id")
                         video_info = await get_llock_video(hass, entry, device_info["did"], session, stream_id)
                         
                     _LOGGER.info(f"图像事件: {video_info}")
@@ -71,7 +73,7 @@ async def initialize_devices_and_groups(hass, entry, session, callback):
                         password_input, 
                         password_confirm,
                         unlock_data_input,
-                        KiwiLockCamera(hass, lock_device, latest_data_event, video_info) 
+                        KiwiLockCamera(hass, lock_device, camera_event, video_info)
                     ]
 
                     if users:

@@ -1,18 +1,17 @@
 {
     "domain": "kiwiot_ws",
-    "name": "KiwiOT 优质云家",
-    "version": "v1.1.10",
-    "documentation": "https://github.com/XG520/kiwiot_ws/tree/main",
+    "name": "KiwiOT 优智云家",
+    "version": "v1.1.20",
+    "documentation": "https://github.com/lxg20082008/kiwiot_ws/tree/main",
     "dependencies": ["camera"],
     "requirements": [
       "aiohttp>=3.8.0",
       "Pillow",
       "ffmpeg-python>=0.2.0",
       "async-timeout",
-      "pillow",
       "aiofiles"
     ],
-    "codeowners": ["@XG520"],
+    "codeowners": ["@lxg20082008"],
     "config_flow": true,
     "logging": {"level": "info"},
     "iot_class": "Cloud Polling",

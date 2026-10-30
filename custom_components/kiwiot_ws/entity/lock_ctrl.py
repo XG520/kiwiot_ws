@@ -36,9 +36,7 @@ class KiwiLockPasswordInput(TextEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self._device_id)},
-        }
+        return self._lock_device.get_device_info()
 
     async def async_set_value(self, value: str) -> None:
         """仅保存密码值"""
@@ -110,9 +108,7 @@ class KiwiLockUnlockDataInput(TextEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self._device_id)},
-        }
+        return self._lock_device.get_device_info()
 
 class KiwiLockPasswordConfirm(ButtonEntity):
     """确认按钮实体"""
@@ -140,15 +136,19 @@ class KiwiLockPasswordConfirm(ButtonEntity):
         self._last_press_time = None
         self.async_write_ha_state()
 
+    async def async_will_remove_from_hass(self) -> None:
+        """实体移除时取消定时器"""
+        if self._update_timer:
+            self._update_timer.cancel()
+            self._update_timer = None
+
     @property
     def icon(self):
         return "mdi:lock-open-check"
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self._device_id)},
-        }
+        return self._lock_device.get_device_info()
 
     @property
     def available(self) -> bool:
