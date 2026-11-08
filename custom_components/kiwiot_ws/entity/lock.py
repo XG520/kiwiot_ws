@@ -1,4 +1,5 @@
-﻿import logging
+﻿import hashlib
+import logging
 from pathlib import Path
 
 from homeassistant.helpers.entity import Entity, DeviceInfo
@@ -429,6 +430,17 @@ class KiwiLockCamera(Camera):
         cache_dir = Path(hass.config.path("custom_components", DOMAIN, "cache"))
         self._image_cache = ImageCache(hass, cache_dir)
 
+    def _event_cache_key(self):
+        """事件级图像缓存键。云端图片URL带时效签名、每次拉取都变，
+        只有「设备+事件名+事件时间」能稳定标识同一事件的同一张图。"""
+        if not self._event_data:
+            return None
+        created = self._event_data.get("created_at")
+        if not created:
+            return None
+        name = self._event_data.get("name", "")
+        return hashlib.md5(f"{self._device.device_id}:{name}:{created}".encode()).hexdigest()
+
     async def async_camera_image(self, width=320, height=480):
         """获取摄像头图片."""
         _LOGGER.debug("开始获取相机图片")
@@ -454,7 +466,7 @@ class KiwiLockCamera(Camera):
 
         domain_data = self.hass.data.get(DOMAIN, {})
         session = domain_data.get("session")
-        image_data = await self._image_cache.get_image(url, session)
+        image_data = await self._image_cache.get_image(url, session, cache_key=self._event_cache_key())
         _LOGGER.debug(f"图片获取{'成功' if image_data else '失败'}")
         return image_data
 
@@ -464,7 +476,13 @@ class KiwiLockCamera(Camera):
             _LOGGER.debug(f"更新相机事件数据: {event_data.get('name')}")
             self._event_data = event_data
 
-            await self._image_cache.clear_cache()
+            key = self._event_cache_key()
+            if key and key == self._image_cache.current_key:
+                # 同一事件（重连补拉/云端重放）：签名URL虽变但图相同，
+                # 磁盘缓存仍在，跳过重下载，断联期不回源
+                _LOGGER.debug("同一图像事件，跳过重下载")
+                self.async_write_ha_state()
+                return True
 
             url = None
             if self._event_data:
@@ -479,7 +497,9 @@ class KiwiLockCamera(Camera):
                 _LOGGER.debug(f"开始预下载图片: {url}")
                 domain_data = self.hass.data.get(DOMAIN, {})
                 session = domain_data.get("session")
-                await self._image_cache.get_image(url, session)
+                # 不再先clear_cache：下载成功后才切换当前缓存指针，
+                # 断联下载失败时保留上一张图可显示；旧文件由滚动清理（保留10个）
+                await self._image_cache.get_image(url, session, cache_key=key)
                 _LOGGER.debug("图片预下载完成")
                 
             self.async_write_ha_state()

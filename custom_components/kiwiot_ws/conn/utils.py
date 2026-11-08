@@ -189,8 +189,14 @@ class ImageCache:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._current_image_url = None
         self._current_cache_file = None
+        self._current_key = None  # 当前缓存对应的事件键
         self._max_cache_files = 10
         self._downloading = False
+
+    @property
+    def current_key(self):
+        """当前缓存对应的事件键，供调用方判断同一事件跳过重复下载"""
+        return self._current_key
 
     async def _cleanup_old_cache(self):
         """清理旧的缓存文件，只保留最近的10个文件（在 executor 中执行，避免阻塞事件循环）"""
@@ -240,28 +246,44 @@ class ImageCache:
             except Exception as e:
                 _LOGGER.error(f"清除缓存文件失败: {e}")
 
-    async def get_image(self, url: str, session: aiohttp.ClientSession = None) -> Optional[bytes]:
-        """获取图片，支持缓存和预下载"""
+    async def get_image(self, url: str, session: aiohttp.ClientSession = None, cache_key: str = None) -> Optional[bytes]:
+        """获取图片，支持缓存和预下载。
+
+        cache_key: 事件级缓存键。门锁云端图片URL带时效签名、每次拉取都变，
+        URL不能当键；同一事件的图像相同，用事件键可跨签名URL、跨HA重启命中磁盘缓存。
+        """
         if not url:
             return None
 
-        cache_file = self._cache_dir / self._get_cache_filename(url)
-        
-        if self._current_image_url == url and cache_file.exists():
+        filename = f"{cache_key}.jpg" if cache_key else self._get_cache_filename(url)
+        cache_file = self._cache_dir / filename
+
+        # 磁盘文件存在即命中（含HA重启后），不再依赖内存中的当前URL
+        if cache_file.exists():
             try:
                 _LOGGER.debug(f"使用缓存图片: {cache_file}")
+                self._current_image_url = url
+                self._current_cache_file = cache_file
+                self._current_key = cache_key
                 return await self._read_file_bytes(cache_file)
             except Exception as e:
                 _LOGGER.error(f"读取缓存图片失败: {e}")
 
-        while self._downloading:
+        # 等待进行中的下载，但设上限：断联期云端挂起时前端请求不得无限堆积
+        waited = 0.0
+        while self._downloading and waited < 15:
             await asyncio.sleep(0.1)
+            waited += 0.1
+        if self._downloading:
+            _LOGGER.warning("进行中的图片下载超过15秒未结束，放弃本次请求")
+            return None
 
         try:
             self._downloading = True
             _session = session or aiohttp.ClientSession()
             try:
-                async with _session.get(url) as response:
+                # 显式超时：云端/图床挂起时最多15秒，杜绝请求无限挂起
+                async with _session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as response:
                     if response.status != 200:
                         _LOGGER.error(f"下载图片失败: HTTP {response.status}")
                         return None
@@ -277,7 +299,8 @@ class ImageCache:
                     
                     self._current_image_url = url
                     self._current_cache_file = cache_file
-                    
+                    self._current_key = cache_key
+
                     _LOGGER.debug(f"图片已下载并缓存: {url}")
                     return await self._read_file_bytes(cache_file)
             finally:
