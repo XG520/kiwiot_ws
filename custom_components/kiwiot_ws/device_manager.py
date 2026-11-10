@@ -17,6 +17,7 @@ from .entity.lock import (
     KiwiLockStatus
     )
 from .entity.lock_ctrl import KiwiLockPasswordInput, KiwiLockPasswordConfirm, KiwiLockUnlockDataInput
+from .entity.battery import KiwiLockBattery
 from .conn.utils import (
     get_latest_event,
     get_history_events,
@@ -73,7 +74,8 @@ async def initialize_devices_and_groups(hass, entry, session, callback):
                         password_input, 
                         password_confirm,
                         unlock_data_input,
-                        KiwiLockCamera(hass, lock_device, camera_event, video_info)
+                        KiwiLockCamera(hass, lock_device, camera_event, video_info),
+                        KiwiLockBattery(hass, lock_device, events)
                     ]
 
                     if users:

@@ -122,6 +122,8 @@ class KiwiLockStatus(Entity):
             return "mdi:door-open"
         elif self._event.get("name") == "LOCKED":
             return "mdi:door-closed-lock"
+        elif self._event.get("name") == "LOW_BATTERY":
+            return "mdi:battery-alert"
         else:
             return "mdi:alert-circle"
 
@@ -183,7 +185,8 @@ class KiwiLockEvent(Entity):
         "HUMAN_WANDERING": "有人徘徊",
         "LOCK_ADD_USER": "添加用户",
         "LOCK_FINGER_VEIN_FRONZEN": "指静脉冻结",
-        "ACTIVE_MONITOR": "主动监控"
+        "ACTIVE_MONITOR": "主动监控",
+        "LOW_BATTERY": "电量不足"
     }
     def __init__(self, hass, device, event, history_events, users):
         self.hass = hass

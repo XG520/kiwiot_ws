@@ -8,6 +8,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Optional, Dict, Any
 from ..entity.lock import KiwiLockEvent, KiwiLockCamera, KiwiLockStatus
+from ..entity.battery import KiwiLockBattery
 from ..const import LOGGER_NAME, WS_URL, DOMAIN
 from .utils import convert_wsevent_format, convert_media_event_format
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -350,7 +351,7 @@ async def process_device_event(hass, entry, data):
             payload = await convert_media_event_format(payload)
         else:
             # 将这些"已知但无附加数据"的事件加入白名单，不再报警
-            if event_name in {"LOCK_INDOOR_BUTTON_UNLOCK", "HUMAN_WANDERING", "LOCK_FINGER_VEIN_FRONZEN", "ACTIVE_MONITOR"}:
+            if event_name in {"LOCK_INDOOR_BUTTON_UNLOCK", "HUMAN_WANDERING", "LOCK_FINGER_VEIN_FRONZEN", "ACTIVE_MONITOR", "LOW_BATTERY"}:
                 _LOGGER.debug(f"接收到已知事件（无附加数据）: {event_name}")
             else:
                 _LOGGER.warning(f"未知事件类型: {payload}")
@@ -417,6 +418,8 @@ async def update_device_state(hass, entry, device_id, event_data):
                 update_tasks.append(update_lock_event(entity, event_data, users))
             elif isinstance(entity, KiwiLockStatus) and event_data.get("name") in {"UNLOCKED", "LOCKED", "LOCK_INDOOR_BUTTON_UNLOCK"}:
                 update_tasks.append(update_lock_status(entity, event_data))
+            elif isinstance(entity, KiwiLockBattery):
+                update_tasks.append(update_battery(entity, event_data))
             elif isinstance(entity, KiwiLockCamera) and event_data.get("data"):
                 update_tasks.append(update_camera(entity, event_data))
 
@@ -456,6 +459,15 @@ async def update_lock_status(entity, event_data):
         _LOGGER.debug(f"已更新门锁状态: {entity}")
     except Exception as e:
         _LOGGER.error(f"更新门锁状态失败: {e}")
+
+async def update_battery(entity, event_data):
+    """更新电池传感器实体"""
+    try:
+        entity.update_from_event(event_data)
+        _LOGGER.debug("已更新电池传感器状态")
+    except Exception as e:
+        _LOGGER.error(f"更新电池传感器失败: {e}")
+
 
 async def update_camera(entity, event_data):
     """更新相机实体"""
